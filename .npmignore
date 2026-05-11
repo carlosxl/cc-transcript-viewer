@@ -1,0 +1,54 @@
+# .npmignore — only files whitelisted in package.json#files ship.
+# This file exists as defense-in-depth; the `files` field in package.json
+# is authoritative. If `files` is removed in a future refactor, this file
+# still prevents accidental inclusion of source, tests, and fixtures.
+
+# Source control
+.git/
+.gitignore
+.gitattributes
+
+# npm internals
+.npmrc
+
+# Dependencies
+node_modules/
+
+# Source packages — only built artifacts in packages/server/dist/ and
+# packages/server/public/ ship via the `files` whitelist.
+packages/ui/
+packages/shared/
+packages/server/src/
+packages/server/vitest.config.ts
+packages/server/tsconfig.json
+packages/server/tsconfig.tsbuildinfo
+
+# Top-level configs
+tsconfig*.json
+vitest.config.*
+
+# Tests and fixtures (in case any leak through)
+**/*.test.ts
+**/*.test.js
+**/*.test.d.ts
+**/__fixtures__/
+**/*.tsbuildinfo
+
+# Coverage
+coverage/
+
+# Logs
+error.log
+error.log.old
+*.log
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# CI / scripts (not part of the runtime package)
+.github/
+.cursor/
+.agents/
+.claude/

@@ -1,0 +1,177 @@
+import { describe, it, expect } from 'vitest'
+import type { ClaudeEvent } from '@cc-viewer/shared'
+import {
+  extractAgentLink,
+  extractAgentIdFromToolResult,
+  buildSubagentLinkages,
+} from './subagent-linker.js'
+
+describe('extractAgentLink', () => {
+  it('extracts task-id and tool-use-id from queue-operation content', () => {
+    const link = extractAgentLink('<task-id>abc123</task-id><tool-use-id>toolu_01ABC</tool-use-id>')
+    expect(link).toEqual({ taskId: 'abc123', toolUseId: 'toolu_01ABC' })
+  })
+
+  it('tolerates surrounding text and whitespace', () => {
+    const link = extractAgentLink('prefix <task-id>  abc  </task-id> middle <tool-use-id>tool_x</tool-use-id> suffix')
+    expect(link).toEqual({ taskId: 'abc', toolUseId: 'tool_x' })
+  })
+
+  it('returns null when either tag is missing', () => {
+    expect(extractAgentLink('<task-id>abc</task-id>')).toBeNull()
+    expect(extractAgentLink('<tool-use-id>tool</tool-use-id>')).toBeNull()
+    expect(extractAgentLink('no tags at all')).toBeNull()
+  })
+})
+
+describe('extractAgentIdFromToolResult', () => {
+  it('parses the canonical "agentId: ..." format', () => {
+    const id = extractAgentIdFromToolResult('Async agent launched successfully.\nagentId: a09b6a258d073239e\nMore info follows')
+    expect(id).toBe('a09b6a258d073239e')
+  })
+
+  it('matches case-sensitively on "agentId" prefix', () => {
+    expect(extractAgentIdFromToolResult('agentid: lowercase')).toBeNull()
+    expect(extractAgentIdFromToolResult('agentId: UPPER_AND_LOWER-99')).toBe('UPPER_AND_LOWER-99')
+  })
+
+  it('returns null when no agentId pattern is present', () => {
+    expect(extractAgentIdFromToolResult('agent launched but no id here')).toBeNull()
+  })
+})
+
+describe('buildSubagentLinkages', () => {
+  function assistant(id: string, blocks: unknown[]): ClaudeEvent {
+    return {
+      type: 'assistant',
+      uuid: `a-${id}`,
+      timestamp: '2026-05-09T00:00:00Z',
+      message: { role: 'assistant', content: blocks },
+    } as unknown as ClaudeEvent
+  }
+  function userToolResult(toolUseId: string, text: string, isError = false): ClaudeEvent {
+    return {
+      type: 'user',
+      uuid: `u-${toolUseId}`,
+      timestamp: '2026-05-09T00:00:01Z',
+      message: {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: toolUseId, content: text, is_error: isError }],
+      },
+    } as unknown as ClaudeEvent
+  }
+  function queueOp(operation: string, taskId: string, toolUseId: string): ClaudeEvent {
+    return {
+      type: 'queue-operation',
+      uuid: `qo-${taskId}`,
+      timestamp: '2026-05-09T00:00:00Z',
+      operation,
+      content: `<task-id>${taskId}</task-id><tool-use-id>${toolUseId}</tool-use-id>`,
+    } as unknown as ClaudeEvent
+  }
+
+  it('resolves toolUseId via Source 1 (queue-operation enqueue)', () => {
+    const parentEvents: ClaudeEvent[] = [
+      assistant('1', [{ type: 'tool_use', id: 'toolu_X', name: 'Task', input: {} }]),
+      queueOp('enqueue', 'agentA', 'toolu_X'),
+    ]
+    const linkages = buildSubagentLinkages(parentEvents, new Map([['agentA', []]]))
+    expect(linkages.agentToToolUse.get('agentA')).toBe('toolu_X')
+    expect(linkages.toolUseToAgent.get('toolu_X')).toBe('agentA')
+    expect(linkages.childrenByAgent.get('')).toEqual(['agentA'])
+  })
+
+  it('resolves toolUseId via Source 2 (tool_result agentId text) when no queue-operation', () => {
+    const parentEvents: ClaudeEvent[] = [
+      assistant('1', [{ type: 'tool_use', id: 'toolu_Y', name: 'Agent', input: {} }]),
+      userToolResult('toolu_Y', 'Async agent launched successfully.\nagentId: agentB'),
+    ]
+    const linkages = buildSubagentLinkages(parentEvents, new Map([['agentB', []]]))
+    expect(linkages.agentToToolUse.get('agentB')).toBe('toolu_Y')
+    expect(linkages.toolUseToAgent.get('toolu_Y')).toBe('agentB')
+  })
+
+  it('Source 1 wins over Source 2 when both signals exist', () => {
+    const parentEvents: ClaudeEvent[] = [
+      assistant('1', [{ type: 'tool_use', id: 'toolu_Z', name: 'Task', input: {} }]),
+      queueOp('enqueue', 'agentC', 'toolu_Z'),
+      // Tool result claims a different agentId — should be ignored because Source 1 already won.
+      userToolResult('toolu_Z', 'agentId: WRONG_ID'),
+    ]
+    const linkages = buildSubagentLinkages(parentEvents, new Map([
+      ['agentC', []],
+      ['WRONG_ID', []],
+    ]))
+    expect(linkages.agentToToolUse.get('agentC')).toBe('toolu_Z')
+    expect(linkages.toolUseToAgent.get('toolu_Z')).toBe('agentC')
+    // WRONG_ID should NOT appear as a child of main since toolu_Z was already claimed.
+    expect(linkages.childrenByAgent.get('')).toEqual(['agentC'])
+  })
+
+  it('marks status=failed when the tool_result has is_error', () => {
+    const parentEvents: ClaudeEvent[] = [
+      assistant('1', [{ type: 'tool_use', id: 'toolu_F', name: 'Agent', input: {} }]),
+      userToolResult('toolu_F', 'agentId: agentDead', true),
+    ]
+    const linkages = buildSubagentLinkages(parentEvents, new Map([['agentDead', []]]))
+    expect(linkages.agentStatus.get('agentDead')).toBe('failed')
+  })
+
+  it('marks status=killed on popAll, completed on remove', () => {
+    const parentEvents: ClaudeEvent[] = [
+      queueOp('enqueue', 'agentRun', 'toolu_R'),
+      queueOp('enqueue', 'agentDone', 'toolu_D'),
+      queueOp('remove', 'agentDone', 'toolu_D'),
+      queueOp('popAll', 'agentRun', 'toolu_R'),
+    ]
+    const linkages = buildSubagentLinkages(parentEvents, new Map([
+      ['agentRun', []],
+      ['agentDone', []],
+    ]))
+    expect(linkages.agentStatus.get('agentRun')).toBe('killed')
+    expect(linkages.agentStatus.get('agentDone')).toBe('completed')
+  })
+
+  it('detects nested children (subagent spawning subagent)', () => {
+    const parentEvents: ClaudeEvent[] = [
+      assistant('p1', [{ type: 'tool_use', id: 'toolu_P', name: 'Task', input: {} }]),
+      queueOp('enqueue', 'parent', 'toolu_P'),
+    ]
+    const parentSubagentEvents: ClaudeEvent[] = [
+      assistant('s1', [{ type: 'tool_use', id: 'toolu_C', name: 'Task', input: {} }]),
+      queueOp('enqueue', 'child', 'toolu_C'),
+    ]
+    const linkages = buildSubagentLinkages(
+      parentEvents,
+      new Map([
+        ['parent', parentSubagentEvents],
+        ['child', []],
+      ]),
+    )
+    expect(linkages.childrenByAgent.get('')).toEqual(['parent'])
+    expect(linkages.childrenByAgent.get('parent')).toEqual(['child'])
+    expect(linkages.toolUseToAgent.get('toolu_C')).toBe('child')
+  })
+
+  it('leaves agents unresolved when neither source matches', () => {
+    const parentEvents: ClaudeEvent[] = [
+      assistant('1', [{ type: 'tool_use', id: 'toolu_Lonely', name: 'Task', input: {} }]),
+      // No queue-operation, no tool_result with agentId text.
+    ]
+    const linkages = buildSubagentLinkages(parentEvents, new Map([['orphanAgent', []]]))
+    expect(linkages.agentToToolUse.get('orphanAgent')).toBeUndefined()
+    expect(linkages.toolUseToAgent.size).toBe(0)
+    // status default still 'completed'.
+    expect(linkages.agentStatus.get('orphanAgent')).toBe('completed')
+  })
+
+  it('ignores tool_result agentId references that do not match a known subagent', () => {
+    const parentEvents: ClaudeEvent[] = [
+      assistant('1', [{ type: 'tool_use', id: 'toolu_X', name: 'Agent', input: {} }]),
+      userToolResult('toolu_X', 'agentId: ghost-agent-not-on-disk'),
+    ]
+    const linkages = buildSubagentLinkages(parentEvents, new Map([['real-agent', []]]))
+    expect(linkages.agentToToolUse.size).toBe(0)
+    expect(linkages.toolUseToAgent.size).toBe(0)
+  })
+})

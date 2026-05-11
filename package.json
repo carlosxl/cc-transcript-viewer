@@ -1,0 +1,56 @@
+{
+  "name": "cc-viewer",
+  "version": "0.1.0",
+  "description": "Local web-UI viewer for Claude Code conversation transcripts",
+  "type": "module",
+  "bin": {
+    "cc-viewer": "./bin/cc-viewer.js"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:server": "tsx packages/server/src/dev.ts",
+    "dev:ui": "vite --config packages/ui/vite.config.ts",
+    "build:ui": "vite build --config packages/ui/vite.config.ts",
+    "copy:ui": "node -e \"const fs=require('node:fs');fs.rmSync('packages/server/public',{recursive:true,force:true});fs.mkdirSync('packages/server/public',{recursive:true});fs.cpSync('packages/ui/dist','packages/server/public',{recursive:true})\"",
+    "build:server": "tsc --build packages/server/tsconfig.json",
+    "build": "npm run build:ui && npm run copy:ui && npm run build:server",
+    "clean": "node -e \"['packages/ui/dist','packages/server/dist','packages/server/public'].forEach(p=>require('node:fs').rmSync(p,{recursive:true,force:true}))\"",
+    "typecheck": "tsc --build",
+    "test": "npm --workspace @cc-viewer/server run test && npm --workspace @cc-viewer/ui run test",
+    "prepublishOnly": "npm run clean && npm run build && npm run test",
+    "pack:dry": "npm pack --dry-run --json"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "bin/cc-viewer.js",
+    "packages/server/dist/",
+    "packages/server/public/"
+  ],
+  "dependencies": {
+    "hono": "^4.12.14",
+    "@hono/node-server": "^2.0.0",
+    "better-sqlite3": "^12.9.0",
+    "chokidar": "^5.0.0",
+    "zod": "^4.3.6",
+    "open": "^11.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.5",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/carlosxl/cc-transcript-viewer"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Build outputs
+packages/ui/dist/
+packages/server/dist/
+packages/server/public/
+packages/shared/dist/
+*.tsbuildinfo
+
+# Stray tsc emit alongside source (we want emit only in dist/)
+packages/shared/src/*.d.ts
+packages/shared/src/*.js
+
+# bin shim is hand-authored ESM and IS committed to git.
+# Listed here as a reminder; no ignore rule for it.
+
+# Claude Code harness — per-project settings, agent worktrees, hooks.
+# Contains local credentials in settings.local.json; never publish.
+.claude/
+
+# Test coverage
+coverage/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Env
+.env
+.env.*
+
+# Fixtures — scrubbed real sessions may contain paths that shouldn't leak
+# (fixtures themselves are committed; .old rotation files are not)
+error.log
+error.log.old
+
+# OS
+Thumbs.db

@@ -1,0 +1,6 @@
+{"type":"last-prompt","sessionId":"s1","lastPrompt":"test prompt","timestamp":"2026-04-24T00:00:00Z"}
+{"type":"custom-title","sessionId":"s1","customTitle":"My Custom Title","timestamp":"2026-04-24T00:00:01Z"}
+{"type":"ai-title","sessionId":"s1","aiTitle":"AI Generated Title","timestamp":"2026-04-24T00:00:02Z"}
+{"type":"user","uuid":"u1","parentUuid":null,"sessionId":"s1","timestamp":"2026-04-24T00:00:03Z","message":{"role":"user","content":"Hello"}}
+{"type":"assistant","uuid":"a1","parentUuid":"u1","sessionId":"s1","timestamp":"2026-04-24T00:00:04Z","message":{"id":"msg_01","model":"claude-opus-4-7","role":"assistant","content":[{"type":"text","text":"Hi!"}],"stop_reason":"end_turn","usage":{"input_tokens":15,"output_tokens":3,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+{"type":"system","subtype":"compact_boundary","sessionId":"s1","timestamp":"2026-04-24T00:00:05Z","content":"manual"}
