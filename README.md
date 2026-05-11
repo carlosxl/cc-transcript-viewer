@@ -2,6 +2,25 @@
 
 Local web-UI viewer for Claude Code conversation transcripts.
 
+## Install & run
+
+```bash
+npx github:carlosxl/cc-transcript-viewer#v0.1.0
+```
+
+Requires Node.js 20+ and read access to the private repo (GitHub SSH key
+or HTTPS token in your git credential helper). The first run takes ~30s to
+clone, install dependencies, and build; subsequent runs are cached by npx.
+
+The server starts on a free localhost port and opens your browser to it.
+Use Ctrl+C to stop.
+
+To update to a newer version, re-run with the new tag:
+
+```bash
+npx github:carlosxl/cc-transcript-viewer#v0.2.0
+```
+
 ## Development
 
 ```bash
