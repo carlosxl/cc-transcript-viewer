@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import type { SessionMeta, Turn, AggregatedUsage } from '@cc-viewer/shared'
 import { Button } from '@/components/ui/button'
@@ -13,24 +13,25 @@ import { useSubagent } from '@/hooks/useSubagent'
 import { useLiveTail } from '@/hooks/useLiveTail'
 import { useFlatNodes } from '@/hooks/useFlatNodes'
 import { useActiveSessionMeta } from '@/hooks/useActiveSessionMeta'
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { useResponsive } from '@/hooks/useResponsive'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
+import type { VirtualNode } from '@/lib/flatNodes'
+import { cn } from '@/lib/utils'
 import { TranscriptHeader } from './TranscriptHeader'
 import { BreadcrumbBar } from './BreadcrumbBar'
 import { VirtualNodeRow } from './VirtualNodeRow'
+import { Minimap } from './Minimap'
+import { StatusBar } from '../layout/StatusBar'
 
 /**
- * Virtualized transcript view.
+ * Virtualized transcript view (Phase 3 layout: header, transcript, status bar).
  *
- * Layout (sibling-flex, RESEARCH.md Pattern 4):
  *   <div h-full flex-col>
- *     <TranscriptHeader flex-shrink-0 />   ← 48px, always visible
- *     <div flex-1 min-h-0>
- *       <Virtuoso />                        ← fills remainder, scrolls independently
- *     </div>
+ *     <TranscriptHeader flex-shrink-0 />   ← 64px breadcrumb + title row
+ *     <div flex-1 min-h-0> <Virtuoso /> </div>
+ *     <StatusBar flex-shrink-0 />          ← keyboard hints + msg N/total
  *   </div>
- *
- * data prop: VirtualNode[] from useFlatNodes (memoized; recomputed when
- * useUIStore.viewMode flips between 'compact' and 'details').
- * computeItemKey: stable per-node key (Pitfall 12 — survives unmount).
  */
 export function TranscriptPane() {
   const activeSessionId = useUIStore((s) => s.activeSessionId)
@@ -44,9 +45,6 @@ export function TranscriptPane() {
   )
   const sessionMeta = useActiveSessionMeta()
 
-  // Live-tail wiring — each useLiveTail call is a no-op when its sessionId
-  // arg is null; we run two parallel hooks so session-view and subagent-view
-  // both reflect appended JSONL lines without re-mounting on entry change.
   const isLive = sessionMeta?.isLive ?? false
   useLiveTail(
     isLive && !onSubagent && activeSessionId ? activeSessionId : null,
@@ -57,29 +55,21 @@ export function TranscriptPane() {
     isLive && onSubagent ? drillTop.agentId : null,
   )
 
-  // Global keyboard shortcut: c = compact, d = details. Skipped when the
-  // user is typing in an input/textarea/contentEditable so it doesn't fire
-  // mid-typing in the search palette.
-  const setViewMode = useUIStore((s) => s.setViewMode)
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.metaKey || e.ctrlKey || e.altKey) return
-      const k = e.key.toLowerCase()
-      if (k !== 'c' && k !== 'd') return
-      const t = e.target as HTMLElement | null
-      const inEditable =
-        t?.tagName === 'INPUT' ||
-        t?.tagName === 'TEXTAREA' ||
-        (t as HTMLElement | null)?.isContentEditable
-      if (inEditable) return
-      e.preventDefault()
-      setViewMode(k === 'c' ? 'compact' : 'details')
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [setViewMode])
+  const activeQuery = onSubagent ? subagentQuery : sessionQuery
+  const turns: Turn[] | undefined = activeQuery.data?.turns
+  const interactions = activeQuery.data?.toolInteractions
+  const nodes: VirtualNode[] = useFlatNodes(turns ?? EMPTY_TURNS, interactions)
 
-  // No active session → empty state (no header needed here)
+  // Global keyboard shortcuts (Phase 3) — c, d, t, j, k, /, Escape.
+  // Pass the flat-node array so j/k advances one TURN at a time (skipping
+  // intra-turn child rows like capsules + diffs).
+  useKeyboardShortcuts(nodes)
+
+  const headerMeta = onSubagent
+    ? buildSubagentMeta(activeSessionId, subagentQuery.data, sessionMeta)
+    : sessionMeta
+  const topModel = activeQuery.data?.tokenSeries.byModel[0]?.model
+
   if (activeSessionId === null) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center px-8">
@@ -88,12 +78,6 @@ export function TranscriptPane() {
       </div>
     )
   }
-
-  const activeQuery = onSubagent ? subagentQuery : sessionQuery
-  const turns: Turn[] | undefined = activeQuery.data?.turns
-  const headerMeta = onSubagent
-    ? buildSubagentMeta(activeSessionId, subagentQuery.data, sessionMeta)
-    : sessionMeta
 
   if (activeQuery.isLoading) {
     return (
@@ -143,21 +127,24 @@ export function TranscriptPane() {
   return (
     <div className="h-full flex flex-col">
       <BreadcrumbBar />
-      {/* TranscriptHeader is a flex-shrink-0 sibling — NOT topItemCount (RESEARCH.md Pattern 4) */}
-      <TranscriptHeader meta={headerMeta} showModeToggle />
-      {/* flex-1 min-h-0: allows the flex item to shrink so Virtuoso fits within the column */}
+      <TranscriptHeader meta={headerMeta} topModel={topModel} showModeToggle />
       <div className="flex-1 min-h-0">
-        <VirtualList turns={turns} />
+        <VirtualList nodes={nodes} />
       </div>
+      <FocusedStatusBar total={nodes.length} />
     </div>
   )
 }
 
-/**
- * Synthesize a SessionMeta-shaped object describing the current subagent so
- * TranscriptHeader can render it (title, token totals, info popover) without
- * needing a parallel SubagentHeader component.
- */
+const EMPTY_TURNS: Turn[] = []
+
+function FocusedStatusBar({ total }: { total: number }) {
+  const idx = useNavigationStore((s) => s.focusedMsgIndex)
+  const current = idx < 0 || total === 0 ? null : Math.min(idx, total - 1) + 1
+  return <StatusBar current={current} total={total} />
+}
+
+/** Subagent → SessionMeta-shaped projection for TranscriptHeader. */
 function buildSubagentMeta(
   sessionId: string,
   detail: import('@cc-viewer/shared').SubagentDetailResponse | undefined,
@@ -189,38 +176,81 @@ function buildSubagentMeta(
   }
 }
 
-function VirtualList({ turns }: { turns: Turn[] }) {
-  const nodes = useFlatNodes(turns)
-  const initialIndex = useScrollStore.getState().lastScrollIndex  // read once on mount
+function VirtualList({ nodes }: { nodes: VirtualNode[] }) {
+  const initialIndex = useScrollStore.getState().lastScrollIndex
   const setScrollIndex = useScrollStore((s) => s.setScrollIndex)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const autoFollow = useLiveStore((s) => s.autoFollow)
   const setAutoFollow = useLiveStore((s) => s.setAutoFollow)
   const pendingCount = useLiveStore((s) => s.pendingCount)
   const clearPending = useLiveStore((s) => s.clearPending)
+  const focusedIdx = useNavigationStore((s) => s.focusedMsgIndex)
+  const setFocusedMsgIndex = useNavigationStore((s) => s.setFocusedMsgIndex)
+  const reducedMotion = useReducedMotion()
+  const { narrow } = useResponsive()
+  const scrollBehavior: ScrollBehavior = reducedMotion ? 'auto' : 'smooth'
 
-  // Search-result jump: SearchPalette stores a pending target on click. Once
-  // the destination turn is in our flat node array (it may take a render
-  // cycle after the session query resolves), scroll to its row.
-  //
-  // The hit may land on a node only emitted in 'details' mode (tool result /
-  // thinking). SearchPalette is responsible for switching viewMode before
-  // setting pendingJump, so by the time we look up nodes here the target is
-  // already present.
   const pendingJump = useSearchStore((s) => s.pendingJumpTarget)
   const clearJump = useSearchStore((s) => s.clearJump)
+  // Key of the row currently flashing (Phase 5). Cleared after the animation
+  // completes so the same row can flash again on a second jump.
+  const [flashedKey, setFlashedKey] = useState<string | null>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!pendingJump) return
-    const idx = nodes.findIndex(
-      (n) => n.kind === 'turn' && n.turn.uuid === pendingJump.turnUuid,
-    )
+    let idx = -1
+    if (pendingJump.interactionId) {
+      // Phase 5: prefer the matching capsule row over the parent turn.
+      const colon = pendingJump.interactionId.lastIndexOf(':')
+      const toolUseId = colon === -1 ? null : pendingJump.interactionId.slice(colon + 1)
+      if (toolUseId !== null) {
+        idx = nodes.findIndex(
+          (n) =>
+            n.kind === 'capsule' &&
+            n.turn.uuid === pendingJump.turnUuid &&
+            n.toolUseId === toolUseId,
+        )
+      }
+    }
+    if (idx === -1) {
+      idx = nodes.findIndex(
+        (n) => n.kind === 'turn' && n.turn.uuid === pendingJump.turnUuid,
+      )
+    }
+    if (idx === -1) {
+      // Continuation assistant turns (same role as prior, tool-only) emit no
+      // `turn` shell — only `capsule` / `diff` / `thinking` rows carry the uuid.
+      // Land on the first child row so jumps from Files / Tokens still resolve.
+      idx = nodes.findIndex((n) => n.turn.uuid === pendingJump.turnUuid)
+    }
     if (idx === -1) return
     clearJump()
+    const targetKey = nodes[idx]!.key
     requestAnimationFrame(() => {
-      virtuosoRef.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'smooth' })
+      virtuosoRef.current?.scrollToIndex({ index: idx, align: 'center', behavior: scrollBehavior })
     })
-  }, [pendingJump, nodes, clearJump])
+    setFlashedKey(targetKey)
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    flashTimerRef.current = setTimeout(() => setFlashedKey(null), 900)
+  }, [pendingJump, nodes, clearJump, scrollBehavior])
+
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    }
+  }, [])
+
+  // j/k scroll-into-view: when focusedMsgIndex changes (and is in range),
+  // smooth-scroll Virtuoso to center the row.
+  useEffect(() => {
+    if (focusedIdx < 0 || focusedIdx >= nodes.length) return
+    virtuosoRef.current?.scrollToIndex({
+      index: focusedIdx,
+      align: 'center',
+      behavior: scrollBehavior,
+    })
+  }, [focusedIdx, nodes.length, scrollBehavior])
 
   const onJumpToLatest = useCallback(() => {
     virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'auto' })
@@ -241,7 +271,48 @@ function VirtualList({ turns }: { turns: Turn[] }) {
         atBottomStateChange={(atBottom) => setAutoFollow(atBottom)}
         followOutput={autoFollow ? 'auto' : false}
         increaseViewportBy={{ top: 200, bottom: 800 }}
-        itemContent={(_, node) => <VirtualNodeRow node={node} />}
+        itemContent={(idx, node) => {
+          // The focus block groups every flat-node belonging to the same Turn
+          // — text shell + thinking + capsules + diff all read as one
+          // "selection box" so j/k feels like advancing a message, not a row.
+          const focusedTurnUuid =
+            focusedIdx >= 0 && focusedIdx < nodes.length ? nodes[focusedIdx]!.turn.uuid : null
+          const isFocused = focusedTurnUuid !== null && node.turn.uuid === focusedTurnUuid
+          const isFirstOfFocused =
+            isFocused && (idx === 0 || nodes[idx - 1]!.turn.uuid !== node.turn.uuid)
+          const isLastOfFocused =
+            isFocused && (idx === nodes.length - 1 || nodes[idx + 1]!.turn.uuid !== node.turn.uuid)
+          return (
+            // Outer padding gives bordered children (capsules, diffs, command
+            // blocks) breathing room from the panel dividers and from each
+            // other. Use explicit pt-*/pb-* (never py-*) so first/last
+            // overrides cannot collide with the baseline padding under
+            // tailwind-merge — `py-1.5` and `pt-5` are in different conflict
+            // groups, so twMerge keeps both and the result then depends on CSS
+            // source order. Only the very first/last rows get extra padding so
+            // content doesn't hug the scroll-viewport edges.
+            <div
+              className={cn(
+                'px-4',
+                idx === 0 ? 'pt-5' : 'pt-1.5',
+                idx === nodes.length - 1 ? 'pb-8' : 'pb-1.5',
+              )}
+            >
+              <div
+                data-focused={isFocused ? 'true' : undefined}
+                data-flash={flashedKey === node.key ? 'true' : undefined}
+                className={cn(
+                  'transition-colors border-l-2 border-transparent',
+                  isFocused && 'bg-muted/40',
+                  isFirstOfFocused && 'rounded-t-md pt-1',
+                  isLastOfFocused && 'rounded-b-md pb-1',
+                )}
+              >
+                <VirtualNodeRow node={node} />
+              </div>
+            </div>
+          )
+        }}
       />
       {!autoFollow && pendingCount > 0 && (
         <button
@@ -252,6 +323,13 @@ function VirtualList({ turns }: { turns: Turn[] }) {
         >
           {pendingCount} new {pendingCount === 1 ? 'message' : 'messages'} ↓
         </button>
+      )}
+      {!narrow && (
+        <Minimap
+          nodes={nodes}
+          focusedIndex={focusedIdx}
+          onSeek={setFocusedMsgIndex}
+        />
       )}
     </div>
   )

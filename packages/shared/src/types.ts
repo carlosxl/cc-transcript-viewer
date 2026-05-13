@@ -270,6 +270,9 @@ export interface SessionDetailResponse {
   subagents: SubagentRef[];
   usage: AggregatedUsage;
   parseWarnings: number;
+  toolInteractions: ToolInteraction[];
+  tokenSeries: TokenSeries;
+  fileTouchIndex: FileTouchIndex;
 }
 
 /**
@@ -289,6 +292,9 @@ export interface SubagentDetailResponse {
   childAgentIds: string[];
   /** Token usage for THIS subagent only (not summed across children). */
   usage: UsageSummary;
+  toolInteractions: ToolInteraction[];
+  tokenSeries: TokenSeries;
+  fileTouchIndex: FileTouchIndex;
 }
 
 export interface ErrorResponse {
@@ -388,5 +394,113 @@ export interface SessionReport {
   rows: ReportRow[];
   /** Sum of units per usage type across all rows. Drives the table footer. */
   unitsByUsageType: ReportUnitsByUsageType;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Projections (Phase 2 of 20260512 UI refactoring)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// Pure derived shapes built server-side once per session load. They sit
+// alongside `Turn[]` on the detail responses so the UI's right rail
+// (Inspector / Tokens / Files) can consume ready-to-render data instead of
+// re-walking turns on every render.
+//
+// The raw event model is unchanged. Builders live in
+// `packages/shared/src/projections/`.
+
+/** Edit/Write line-count summary. Raw strings stay on `ToolUse.input`. */
+export interface DiffSummary {
+  filePath: string;
+  added: number;
+  removed: number;
+}
+
+/** Read preview metadata. Raw content stays on `ToolResult.content`. */
+export interface PreviewSummary {
+  filePath: string;
+  lineCount: number | null;
+}
+
+/**
+ * A paired tool_use ↔ tool_result projection, ready for the Inspector panel.
+ *
+ * The actual `input` and `result.content` are NOT duplicated here — they
+ * remain on the originating `Turn` (see `toolUseId` / `resultTurnUuid`). The
+ * UI builds a `Map<toolUseId, …>` from `turns` once on load. Embedding the
+ * full payloads here would double the response size on tool-heavy sessions
+ * (measured 41% delta on a 1.3k-turn real session).
+ */
+export interface ToolInteraction {
+  /** `${turnUuid}:${toolUseId}` — stable across reloads. */
+  id: string;
+  /** Back-pointer for jump-back navigation. */
+  turnUuid: string;
+  /** Original tool_use block id (so the UI can index into `turns`). */
+  toolUseId: string;
+  /** Tool name (e.g. 'Bash', 'Read', 'Edit'). */
+  tool: string;
+  /** Turn uuid carrying the matching tool_result; null when still streaming. */
+  resultTurnUuid: string | null;
+  status: 'success' | 'fail' | 'running';
+  /** Timestamp of the assistant turn carrying the ToolUse. */
+  startedAt: string;
+  /** End − start ms; null when result missing or timestamps unparseable. */
+  durationMs: number | null;
+  /** Present for Edit / Write / MultiEdit / NotebookEdit. */
+  diff: DiffSummary | null;
+  /** Present for Read. */
+  preview: PreviewSummary | null;
+}
+
+export interface TokenPoint {
+  turnUuid: string;
+  /** Assistant-turn ordinal (0..N-1), not the raw turn index. */
+  turnIndex: number;
+  model: string;
+  input: number;
+  output: number;
+  /** cache_creation_input_tokens (both 5m and 1h folded together). */
+  cacheCreate: number;
+  cacheRead: number;
+}
+
+export interface TokenSpike {
+  turnUuid: string;
+  /** input + output + cacheCreate at this point. */
+  tokens: number;
+  reason: 'high-input' | 'high-output' | 'high-cache-create';
+}
+
+export interface TokenSeries {
+  /** One entry per assistant turn that carries a usage block. */
+  points: TokenPoint[];
+  /** Per-model totals + percentage of grand-total. Sorted by tokens desc. */
+  byModel: { model: string; tokens: number; pct: number }[];
+  /** Top-3 outliers; empty when N < 4 or no spike crosses mean + 2σ. */
+  spikes: TokenSpike[];
+  /** 0..1 — cacheRead / (cacheRead + cacheCreate + input). 0 when denom=0. */
+  cacheHitPct: number;
+  /** Average (input + output + cacheCreate) per assistant turn. 0 when empty. */
+  avgPerTurn: number;
+}
+
+export interface TurnRef {
+  turnUuid: string;
+  timestamp: string;
+}
+
+export interface FileTouch {
+  path: string;
+  reads: TurnRef[];
+  writes: TurnRef[];
+  /** True when any Edit / Write / MultiEdit / NotebookEdit hit this path. */
+  changed: boolean;
+  /** Latest observed line count from a Read result; null when never observed. */
+  lineCount: number | null;
+}
+
+export interface FileTouchIndex {
+  /** Sorted by recency desc (latest touch first). */
+  files: FileTouch[];
 }
 

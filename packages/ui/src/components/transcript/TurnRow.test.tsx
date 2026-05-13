@@ -14,15 +14,16 @@ function turn(over: Partial<Turn> = {}): Turn {
 }
 
 describe('TurnRow', () => {
-  it('renders user role with User label', () => {
+  it('renders user role with You label', () => {
     render(<TurnRow turn={turn({ role: 'user' })} />)
-    expect(screen.getByText('User')).toBeInTheDocument()
+    expect(screen.getByText('You')).toBeInTheDocument()
   })
 
-  it('renders assistant role with Claude label and indigo stripe', () => {
+  it('renders assistant role with Claude label and round claude-tint avatar', () => {
     const { container } = render(<TurnRow turn={turn({ role: 'assistant', textBlocks: ['hi'] })} />)
     expect(screen.getByText('Claude')).toBeInTheDocument()
-    expect(container.querySelector('[data-role="assistant"]')!.className).toMatch(/border-l-indigo/)
+    const avatar = container.querySelector('[data-role="assistant"] > div')
+    expect(avatar!.className).toMatch(/rounded-full/)
   })
 
   it('renders system role with System label', () => {
@@ -39,5 +40,11 @@ describe('TurnRow', () => {
   it('short content does NOT show preview button', () => {
     render(<TurnRow turn={turn({ role: 'user', textBlocks: ['short'] })} />)
     expect(screen.queryByText(/Show full/)).toBeNull()
+  })
+
+  it('user turn with <command-name> renders the CommandBlock instead of a YOU avatar', () => {
+    render(<TurnRow turn={turn({ role: 'user', textBlocks: ['<command-name>/clear</command-name>'] })} />)
+    expect(screen.queryByText('You')).toBeNull()
+    expect(screen.getByText('/clear')).toBeInTheDocument()
   })
 })

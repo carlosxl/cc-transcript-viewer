@@ -52,17 +52,32 @@ describe('API routes', () => {
     expect(body.sessions[0]!.title).toBe('Test Session')
   })
 
-  it('GET /api/sessions/:id returns { turns, subagents, usage, parseWarnings } (D-24)', async () => {
+  it('GET /api/sessions/:id returns { turns, subagents, usage, parseWarnings, projections } (D-24)', async () => {
     const res = await app.fetch(new Request(`${ORIGIN}/api/sessions/real-session`, {
       headers: { Origin: ORIGIN },
     }))
     expect(res.status).toBe(200)
-    const body = await res.json() as { turns: unknown[]; subagents: unknown[]; usage: { inputTokens: number }; parseWarnings: number }
+    const body = await res.json() as {
+      turns: unknown[]
+      subagents: unknown[]
+      usage: { inputTokens: number }
+      parseWarnings: number
+      toolInteractions: unknown[]
+      tokenSeries: { points: unknown[]; byModel: unknown[]; cacheHitPct: number; avgPerTurn: number; spikes: unknown[] }
+      fileTouchIndex: { files: unknown[] }
+    }
     expect(Array.isArray(body.turns)).toBe(true)
     expect(body.turns.length).toBe(2)       // user + assistant
     expect(Array.isArray(body.subagents)).toBe(true)
     expect(body.usage.inputTokens).toBe(5)
     expect(body.parseWarnings).toBe(0)
+    // Phase 2 projections
+    expect(Array.isArray(body.toolInteractions)).toBe(true)
+    expect(body.toolInteractions).toEqual([]) // assistant turn had no tool_use blocks
+    expect(body.tokenSeries.points.length).toBe(1)
+    expect(body.tokenSeries.avgPerTurn).toBe(7) // 5 input + 2 output + 0 cache_create
+    expect(body.tokenSeries.byModel.length).toBe(1)
+    expect(body.fileTouchIndex.files).toEqual([])
   })
 
   it('GET /api/sessions/:id returns 404 for unknown session with SESSION_NOT_FOUND code (D-25)', async () => {
@@ -145,6 +160,9 @@ describe('GET /api/sessions/:id/subagents/:agentId (Phase 3 W1.2)', () => {
       turns: unknown[]
       childAgentIds: string[]
       usage: { inputTokens: number; outputTokens: number }
+      toolInteractions: unknown[]
+      tokenSeries: { points: unknown[]; avgPerTurn: number }
+      fileTouchIndex: { files: unknown[] }
     }
     expect(body.agentId).toBe('helper7')
     expect(body.agentType).toBe('researcher')
@@ -154,6 +172,11 @@ describe('GET /api/sessions/:id/subagents/:agentId (Phase 3 W1.2)', () => {
     expect(body.childAgentIds).toEqual([])
     expect(body.usage.inputTokens).toBe(11)
     expect(body.usage.outputTokens).toBe(7)
+    // Phase 2 projections — subagent-scoped
+    expect(body.toolInteractions).toEqual([])
+    expect(body.tokenSeries.points.length).toBe(1)
+    expect(body.tokenSeries.avgPerTurn).toBe(18) // 11 input + 7 output
+    expect(body.fileTouchIndex.files).toEqual([])
   })
 
   it('returns 404 SUBAGENT_NOT_FOUND for unknown agentId', async () => {

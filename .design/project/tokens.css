@@ -1,0 +1,168 @@
+/* Shared design tokens — warm neutral dev-tool palette, Claude-adjacent */
+
+:root, [data-theme="light"] {
+  /* Surfaces */
+  --bg: #FAF9F6;
+  --surface: #FFFFFF;
+  --surface-2: #F4F2EC;
+  --surface-3: #ECE9E1;
+  --surface-inset: #F8F6F1;
+
+  /* Text */
+  --text: #1F1E1C;
+  --text-2: #58544D;
+  --text-3: #8B867D;
+  --text-4: #B5B0A6;
+
+  /* Lines */
+  --border: #E8E4DC;
+  --border-strong: #D8D2C6;
+  --border-subtle: #F0EDE5;
+
+  /* Accent — warm rust (Claude-ish, distinct from AfterShip's vivid orange) */
+  --accent: #C96442;
+  --accent-hover: #B25636;
+  --accent-soft: #F5E6DD;
+  --accent-text: #8A3F26;
+
+  /* Role tints */
+  --user-tint: #EEF2F7;
+  --user-text: #2C4E6E;
+  --user-rail: #94B0CC;
+
+  --claude-tint: #F7EFE7;
+  --claude-text: #8A3F26;
+  --claude-rail: #C96442;
+
+  --tool-tint: #F1EFE9;
+  --tool-text: #4A4540;
+  --tool-rail: #B5AC9A;
+
+  --think-tint: #F0EFEB;
+  --think-text: #6A6359;
+
+  /* Semantic */
+  --success: #2F7D4F;
+  --success-soft: #E1F0E6;
+  --warn: #B5781E;
+  --warn-soft: #F6ECD5;
+  --danger: #B5392F;
+  --danger-soft: #F6DEDA;
+  --info: #2F6FB5;
+  --info-soft: #DDE9F6;
+
+  /* Code */
+  --code-bg: #F4F2EC;
+  --code-border: #E5E1D8;
+  --code-text: #2A2722;
+
+  /* Diff */
+  --diff-add-bg: #E6F1E5;
+  --diff-add-text: #1F5E2A;
+  --diff-add-gutter: #C8E0C2;
+  --diff-rm-bg: #F7E1DC;
+  --diff-rm-text: #8E2B22;
+  --diff-rm-gutter: #ECC2BA;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(40,30,20,.06);
+  --shadow-md: 0 4px 14px rgba(40,30,20,.08), 0 1px 2px rgba(40,30,20,.04);
+  --shadow-lg: 0 18px 48px rgba(40,30,20,.14), 0 2px 6px rgba(40,30,20,.06);
+
+  /* Radii */
+  --r-1: 6px;
+  --r-2: 10px;
+  --r-3: 14px;
+  --r-pill: 999px;
+
+  /* Type */
+  --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", "Iowan Old Style", "Palatino", Georgia, serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+[data-theme="dark"] {
+  --bg: #161513;
+  --surface: #1E1C19;
+  --surface-2: #25221E;
+  --surface-3: #2D2A24;
+  --surface-inset: #1A1814;
+
+  --text: #F2EFE8;
+  --text-2: #B5B0A6;
+  --text-3: #82796D;
+  --text-4: #5E5750;
+
+  --border: #2D2A24;
+  --border-strong: #3A362F;
+  --border-subtle: #25221E;
+
+  --accent: #E5876A;
+  --accent-hover: #F09C81;
+  --accent-soft: #3B2A22;
+  --accent-text: #F0A487;
+
+  --user-tint: #1F2731;
+  --user-text: #B7D0E8;
+  --user-rail: #5279A4;
+
+  --claude-tint: #2A1F1A;
+  --claude-text: #F0A487;
+  --claude-rail: #E5876A;
+
+  --tool-tint: #232017;
+  --tool-text: #B2A992;
+  --tool-rail: #6A6354;
+
+  --think-tint: #20201D;
+  --think-text: #9C968A;
+
+  --success: #6FCB8B;
+  --success-soft: #1E3526;
+  --warn: #E5B362;
+  --warn-soft: #3A2E18;
+  --danger: #E58372;
+  --danger-soft: #3A211D;
+  --info: #7AB3E5;
+  --info-soft: #1E2D3A;
+
+  --code-bg: #1A1814;
+  --code-border: #2D2A24;
+  --code-text: #DDD8CD;
+
+  --diff-add-bg: #1B3025;
+  --diff-add-text: #98D3A1;
+  --diff-add-gutter: #244A33;
+  --diff-rm-bg: #3A211D;
+  --diff-rm-text: #E59A8B;
+  --diff-rm-gutter: #5A2A24;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 4px 14px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3);
+  --shadow-lg: 0 18px 48px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.3);
+}
+
+/* Tweak-driven overrides */
+body[data-density="compact"] .cc-mock { line-height: 1.35; font-size: 12.5px; }
+body[data-density="compact"] .cc-mock h1 { font-size: 18px !important; }
+body[data-show-thinking="n"] .cc-mock [data-thinking] { display: none !important; }
+body[data-serif-titles="n"] .cc-mock h1,
+body[data-serif-titles="n"] .cc-mock h2 { font-family: var(--font-sans) !important; }
+
+/* Reset within mock frames */
+.cc-mock, .cc-mock * { box-sizing: border-box; }
+.cc-mock {
+  font-family: var(--font-sans);
+  color: var(--text);
+  background: var(--bg);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.45;
+}
+.cc-mock button { font-family: inherit; }
+.cc-mock ::selection { background: var(--accent-soft); color: var(--accent-text); }
+
+/* Scrollbar polish (inside frames) */
+.cc-mock .scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.cc-mock .scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; border: 2px solid var(--bg); }
+.cc-mock .scroll::-webkit-scrollbar-track { background: transparent; }

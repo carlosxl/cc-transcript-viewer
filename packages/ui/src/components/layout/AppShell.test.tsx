@@ -55,12 +55,13 @@ describe('AppShell', () => {
     expect(screen.getAllByText('Select a session').length).toBeGreaterThan(0)
   })
 
-  it('renders the header slot (empty placeholder, Plan 09 will fill)', () => {
+  it('renders the sidebar v2 header (brand badge + Transcripts label)', () => {
     vi.spyOn(api, 'fetchSessions').mockImplementation(() => new Promise(() => {}))
-    const { container } = withQuery(<AppShell />)
-    // HeaderSlot renders an empty div with specific classes — verify it exists in DOM
-    const header = container.querySelector('.h-12.flex-shrink-0')
-    expect(header).toBeTruthy()
+    withQuery(<AppShell />)
+    // The Inspector-rail-report refactor replaced the fixed-height sidebar
+    // header with the v2 brand row. The new header is identified by its
+    // "Transcripts" label rather than a height class.
+    expect(screen.getAllByText('Transcripts').length).toBeGreaterThan(0)
   })
 
   it('uses ResizablePanelGroup (two-pane layout present)', () => {
@@ -70,10 +71,17 @@ describe('AppShell', () => {
     expect(group).toBeTruthy()
   })
 
-  it('has two resizable panels', () => {
+  it('has three resizable panels (sidebar, main, rail)', () => {
     vi.spyOn(api, 'fetchSessions').mockImplementation(() => new Promise(() => {}))
     const { container } = withQuery(<AppShell />)
     const panels = container.querySelectorAll('[data-slot="resizable-panel"]')
-    expect(panels.length).toBe(2)
+    expect(panels.length).toBe(3)
+  })
+
+  it('renders the RightRail in the third pane', () => {
+    vi.spyOn(api, 'fetchSessions').mockImplementation(() => new Promise(() => {}))
+    const { container } = withQuery(<AppShell />)
+    const rail = container.querySelector('aside[aria-label="Inspector rail"]')
+    expect(rail).toBeTruthy()
   })
 })

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>cc-transcript-viewer · redesign explorations</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Instrument+Serif&display=swap"/>
+  <link rel="stylesheet" href="tokens.css"/>
+  <style>
+    html, body { margin:0; padding:0; height:100%; background:#f0eee9; font-family:"Geist", system-ui, sans-serif; }
+    .vshell { position:relative; width:100%; height:100%; overflow:hidden; border-radius:10px; background:var(--bg); }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="data.jsx"></script>
+  <script type="text/babel" src="shared.jsx"></script>
+  <script type="text/babel" src="v1-reading.jsx"></script>
+  <script type="text/babel" src="v2-workspace.jsx"></script>
+  <script type="text/babel" src="v3-timeline.jsx"></script>
+
+  <script type="text/babel">
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "accent": "#C96442",
+      "paper": "#FAF9F6",
+      "density": "comfy",
+      "showThinking": true,
+      "serifTitles": true,
+      "monoMetrics": true,
+      "borderStyle": "subtle"
+    }/*EDITMODE-END*/;
+
+    // Curated swatches
+    const ACCENT_SWATCHES = ["#C96442","#2A6FDB","#1F8A5B","#7A5AE0","#3F3F3F"];
+    const PAPER_SWATCHES  = ["#FAF9F6","#FFFFFF","#F4F1EA","#F2F4F1"];
+
+    function applyTweaks(t) {
+      const root = document.documentElement;
+      root.style.setProperty("--accent", t.accent);
+      root.style.setProperty("--bg", t.paper);
+      // Derive accent-soft + text from accent
+      const hex = t.accent.replace("#","");
+      const r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16);
+      root.style.setProperty("--accent-soft", `rgba(${r},${g},${b},0.13)`);
+      root.style.setProperty("--accent-text", t.accent);
+      root.style.setProperty("--claude-rail", t.accent);
+      root.style.setProperty("--claude-text", t.accent);
+      // Border style
+      const subtle = t.borderStyle === "subtle";
+      root.style.setProperty("--border", subtle ? "#E8E4DC" : "#D1CCC0");
+      root.style.setProperty("--border-strong", subtle ? "#D8D2C6" : "#B8B0A0");
+      // Density + boolean tweaks via body data attrs (CSS responds)
+      document.body.dataset.density = t.density;
+      document.body.dataset.showThinking = t.showThinking ? "y" : "n";
+      document.body.dataset.serifTitles = t.serifTitles ? "y" : "n";
+      document.body.dataset.monoMetrics = t.monoMetrics ? "y" : "n";
+    }
+
+    // Wrapper that lets each artboard hold its own theme state.
+    function Variant({ children, defaultTheme="light" }) {
+      const [theme, setTheme] = React.useState(defaultTheme);
+      return (
+        <div className="vshell">
+          {React.cloneElement(children, { theme, onTheme: setTheme })}
+        </div>
+      );
+    }
+
+    function App() {
+      const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      React.useEffect(() => { applyTweaks(t); }, [t]);
+
+      return (
+        <>
+          <DesignCanvas
+            title="cc-transcript-viewer — redesign"
+            subtitle="Three directions, all warm-neutral, light + dark. Open Tweaks (toolbar) to swap accent, paper, density."
+          >
+            <DCSection
+              id="main"
+              title="Three directions"
+              subtitle="A · Reading view — document feel, sticky header, inline tool capsules.   B · Workspace — 3-pane with project tree + tool inspector.   C · Timeline — vertical spine with persistent token report rail.">
+              <DCArtboard id="v1" label="A · Reading view" width={1440} height={900}>
+                <Variant defaultTheme="light"><V1Reading/></Variant>
+              </DCArtboard>
+              <DCArtboard id="v2" label="B · Workspace (3-pane)" width={1440} height={900}>
+                <Variant defaultTheme="light"><V2Workspace/></Variant>
+              </DCArtboard>
+              <DCArtboard id="v3" label="C · Timeline + persistent report" width={1440} height={900}>
+                <Variant defaultTheme="light"><V3Timeline/></Variant>
+              </DCArtboard>
+            </DCSection>
+
+            <DCSection id="dark" title="Dark mode previews" subtitle="Same three directions, in dark. Click the sun/moon icon in any artboard to flip a single frame.">
+              <DCArtboard id="v1d" label="A · Reading" width={1440} height={900}>
+                <Variant defaultTheme="dark"><V1Reading/></Variant>
+              </DCArtboard>
+              <DCArtboard id="v2d" label="B · Workspace" width={1440} height={900}>
+                <Variant defaultTheme="dark"><V2Workspace/></Variant>
+              </DCArtboard>
+              <DCArtboard id="v3d" label="C · Timeline" width={1440} height={900}>
+                <Variant defaultTheme="dark"><V3Timeline/></Variant>
+              </DCArtboard>
+            </DCSection>
+          </DesignCanvas>
+
+          <TweaksPanel title="Tweaks">
+            <TweakSection label="Brand"/>
+            <TweakColor label="Accent" value={t.accent} options={ACCENT_SWATCHES}
+                        onChange={v => setTweak("accent", v)}/>
+            <TweakColor label="Paper" value={t.paper} options={PAPER_SWATCHES}
+                        onChange={v => setTweak("paper", v)}/>
+            <TweakRadio label="Borders" value={t.borderStyle} options={["subtle","visible"]}
+                        onChange={v => setTweak("borderStyle", v)}/>
+
+            <TweakSection label="Layout"/>
+            <TweakRadio label="Density" value={t.density} options={["compact","comfy"]}
+                        onChange={v => setTweak("density", v)}/>
+            <TweakToggle label="Serif titles" value={t.serifTitles}
+                         onChange={v => setTweak("serifTitles", v)}/>
+            <TweakToggle label="Mono for metrics" value={t.monoMetrics}
+                         onChange={v => setTweak("monoMetrics", v)}/>
+            <TweakToggle label="Show thinking" value={t.showThinking}
+                         onChange={v => setTweak("showThinking", v)}/>
+          </TweaksPanel>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>

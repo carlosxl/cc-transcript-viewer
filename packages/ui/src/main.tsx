@@ -1,5 +1,12 @@
+// Fontsource — self-hosted; no runtime requests to Google Fonts (privacy).
+import '@fontsource/geist-sans/400.css'
+import '@fontsource/geist-sans/500.css'
+import '@fontsource/geist-sans/600.css'
+import '@fontsource/geist-mono/400.css'
+import '@fontsource/geist-mono/500.css'
+import '@fontsource/instrument-serif/400.css'
 import './index.css'
-import { StrictMode, useEffect } from 'react'
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import App from './App'
@@ -52,13 +59,25 @@ function reconcileSnapshots(): void {
   const newId = entry ? entryToId(entry) : undefined
 
   if (newId === lastEntryId) return
+  // Hoist the re-entry guard above the state mutations below: setFocusedMsgIndex
+  // and setSelectedInteractionId both write to useNavigationStore, which is
+  // subscribed to this function. Updating lastEntryId first ensures the
+  // recursive subscriber call returns at the guard above.
+  const prevEntryId = lastEntryId
+  lastEntryId = newId
 
-  if (lastEntryId !== undefined) {
-    scrollSnapshots.set(lastEntryId, useScrollStore.getState().lastScrollIndex)
+  if (prevEntryId !== undefined) {
+    scrollSnapshots.set(prevEntryId, useScrollStore.getState().lastScrollIndex)
   }
 
   const nextScroll = newId ? scrollSnapshots.get(newId) ?? 0 : 0
   useScrollStore.setState({ lastScrollIndex: nextScroll })
+
+  // Reset focused message index on entry change (Phase 3). -1 = no row
+  // outlined; the primary-tint ring only appears after the user presses j/k.
+  useNavigationStore.getState().setFocusedMsgIndex(-1)
+  // Reset selected tool interaction on entry change (Phase 4).
+  useNavigationStore.getState().setSelectedInteractionId(null)
 
   // Reset live-tail UI state — autoFollow defaults to true on each entry
   // change, pendingCount cleared. Virtuoso's atBottomStateChange will flip
@@ -71,8 +90,6 @@ function reconcileSnapshots(): void {
   if (activeSessionId) liveIds.add(`session:${activeSessionId}`)
   for (const f of drillStack) liveIds.add(`subagent:${f.sessionId}:${f.agentId}`)
   for (const id of scrollSnapshots.keys()) if (!liveIds.has(id)) scrollSnapshots.delete(id)
-
-  lastEntryId = newId
 }
 
 useUIStore.subscribe(reconcileSnapshots)
@@ -128,22 +145,6 @@ if (typeof window !== 'undefined') {
   useNavigationStore.subscribe(applyCanonicalHash)
 }
 
-/**
- * Theme attribute syncer — sets `[data-theme="dark"|"light"]` on <html>
- * so shadcn's zinc CSS variables apply (UI-SPEC §"Dark Mode").
- * Mounted via a tiny inner component so React owns the effect lifetime.
- */
-function ThemeAttribute() {
-  const theme = useUIStore((s) => s.theme)
-  useEffect(() => {
-    document.documentElement.dataset['theme'] = theme
-    // Tailwind's dark-variant convention: also toggle the .dark class
-    if (theme === 'dark') document.documentElement.classList.add('dark')
-    else document.documentElement.classList.remove('dark')
-  }, [theme])
-  return <App />
-}
-
 const el = document.getElementById('root')
 if (!el) throw new Error('#root not found in index.html')
 createRoot(el).render(
@@ -151,7 +152,7 @@ createRoot(el).render(
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
         <TooltipProvider delayDuration={300}>
-          <ThemeAttribute />
+          <App />
         </TooltipProvider>
       </ErrorBoundary>
     </QueryClientProvider>

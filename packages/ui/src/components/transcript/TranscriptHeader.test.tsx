@@ -1,8 +1,13 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { SessionMeta } from '@cc-viewer/shared'
 import { TranscriptHeader } from './TranscriptHeader'
+import { useUIStore } from '@/stores/useUIStore'
+
+beforeEach(() => {
+  useUIStore.setState({ pinnedSessions: new Set(), rightRailOpen: true })
+})
 
 afterEach(() => {
   cleanup()
@@ -32,10 +37,10 @@ function makeMeta(over: Partial<SessionMeta> = {}): SessionMeta {
   }
 }
 
-function renderHeader(meta: SessionMeta | undefined) {
+function renderHeader(meta: SessionMeta | undefined, topModel?: string) {
   return render(
     <TooltipProvider>
-      <TranscriptHeader meta={meta} />
+      <TranscriptHeader meta={meta} topModel={topModel} />
     </TooltipProvider>
   )
 }
@@ -46,31 +51,25 @@ describe('TranscriptHeader', () => {
     expect(screen.getByText('Refactor auth')).toBeInTheDocument()
   })
 
-  it('Test 2: renders 4 token badges with correct abbreviated labels', () => {
-    renderHeader(makeMeta())
-    // inputTokens: 12438 → "12.4k", outputTokens: 3142 → "3.1k"
-    // cacheCreationTokens: 8200 → "8.2k", cacheReadTokens: 22000 → "22.0k"
-    expect(screen.getByText('In 12.4k')).toBeInTheDocument()
-    expect(screen.getByText('Out 3.1k')).toBeInTheDocument()
-    expect(screen.getByText('C+ 8.2k')).toBeInTheDocument()
-    expect(screen.getByText('C- 22.0k')).toBeInTheDocument()
+  it('Test 2: renders 3 metric chips — Messages, Tokens, Model', () => {
+    renderHeader(makeMeta(), 'claude-opus-4-7')
+    // Messages chip → exact int (42)
+    expect(screen.getByText('Messages')).toBeInTheDocument()
+    expect(screen.getByText('42')).toBeInTheDocument()
+    // Tokens chip → sum of all four categories, abbreviated.
+    // 12438 + 3142 + 8200 + 22000 = 45780 → "45.8k"
+    expect(screen.getByText('Tokens')).toBeInTheDocument()
+    expect(screen.getByText('45.8k')).toBeInTheDocument()
+    // Model chip → topModel prop value
+    expect(screen.getByText('Model')).toBeInTheDocument()
+    expect(screen.getByText('claude-opus-4-7')).toBeInTheDocument()
   })
 
-  it('Test 3: tooltip content text is rendered in the document (Radix portal, open=true)', () => {
-    // Radix Tooltip portals require the tooltip to be in "open" state to render portal content.
-    // We force open by rendering with open={true} on the inner Tooltip. Since TranscriptHeader
-    // renders Tooltip internally, we instead verify the tooltip content is structurally present
-    // by using a controlled open state via a wrapper. However, since the component is not
-    // designed to accept an open prop, we verify the abbreviated label + exact contract
-    // by importing and calling formatExactInt directly (unit-level contract verification).
-    //
-    // The integration-level popover test (Test 6) already verifies click-to-open rendering.
-    // formatExactInt is tested in format.test.ts. This test verifies the badge label renders.
+  it('Test 3: Model chip shows em-dash when topModel is undefined', () => {
     renderHeader(makeMeta())
-    expect(screen.getByText('In 12.4k')).toBeInTheDocument()
-    // Verify tooltip trigger has aria structure (data-slot set by shadcn)
-    const trigger = screen.getByText('In 12.4k').closest('[data-slot="tooltip-trigger"]')
-    expect(trigger).not.toBeNull()
+    expect(screen.getByText('Model')).toBeInTheDocument()
+    // em-dash fallback
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
   })
 
   it('Test 4: parseWarnings badge hidden when zero', () => {
@@ -100,8 +99,8 @@ describe('TranscriptHeader', () => {
     }))
     const infoBtn = screen.getByRole('button', { name: /session info/i })
     fireEvent.click(infoBtn)
-    // Popover content should now be in DOM
-    expect(screen.getByText('sess-abc-123')).toBeInTheDocument()
+    // sessionId is now rendered in BOTH the breadcrumb and the popover.
+    expect(screen.getAllByText('sess-abc-123').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('/home/user/my-project')).toBeInTheDocument()
     expect(screen.getByText('2026-04-27T10:30:00.000Z')).toBeInTheDocument()
     expect(screen.getByText('1.2.3')).toBeInTheDocument()
@@ -121,7 +120,51 @@ describe('TranscriptHeader', () => {
     renderHeader(undefined)
     const banner = screen.getByRole('banner', { name: /transcript header/i })
     expect(banner).toBeInTheDocument()
-    // No token badges when meta is undefined
-    expect(screen.queryByText(/\d+\.\d+k/)).not.toBeInTheDocument()
+    // No metric chips when meta is undefined
+    expect(screen.queryByText(/Tokens/)).not.toBeInTheDocument()
+  })
+
+  it('Test 9: star button toggles pinnedSessions in the store', () => {
+    renderHeader(makeMeta({ sessionId: 's-pin' }))
+    expect(useUIStore.getState().pinnedSessions.has('s-pin')).toBe(false)
+    const star = screen.getByRole('button', { name: /star session/i })
+    fireEvent.click(star)
+    expect(useUIStore.getState().pinnedSessions.has('s-pin')).toBe(true)
+    // After pinning the aria-label flips to "Unstar session" — find by that.
+    const unstar = screen.getByRole('button', { name: /unstar session/i })
+    fireEvent.click(unstar)
+    expect(useUIStore.getState().pinnedSessions.has('s-pin')).toBe(false)
+  })
+
+  it('Test 10: right-rail toggle flips useUIStore.rightRailOpen', () => {
+    renderHeader(makeMeta())
+    expect(useUIStore.getState().rightRailOpen).toBe(true)
+    const toggle = screen.getByRole('button', { name: /toggle inspector rail/i })
+    fireEvent.click(toggle)
+    expect(useUIStore.getState().rightRailOpen).toBe(false)
+    fireEvent.click(toggle)
+    expect(useUIStore.getState().rightRailOpen).toBe(true)
+  })
+
+  it('Test 11: renders the breadcrumb (projectSlug · sessionId)', () => {
+    renderHeader(makeMeta({ projectSlug: 'foo-proj', sessionId: 'sess-xyz' }))
+    expect(screen.getByText('foo-proj')).toBeInTheDocument()
+    // sessionId text is in the breadcrumb; popover not yet opened.
+    expect(screen.getByText('sess-xyz')).toBeInTheDocument()
+  })
+
+  it('Test 12 (FR-016): Report button dispatches setSessionReportOpen(true)', () => {
+    renderHeader(makeMeta())
+    expect(useUIStore.getState().sessionReportOpen).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: /session token report/i }))
+    expect(useUIStore.getState().sessionReportOpen).toBe(true)
+  })
+
+  it('Test 13 (FR-016): no SessionReportDrawer is mounted from the header', () => {
+    renderHeader(makeMeta())
+    // The drawer must not be mounted by the header — only the trigger button.
+    // The drawer renders a DialogContent with role="dialog" once mounted.
+    // When the store flag is false, no dialog should be present.
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
