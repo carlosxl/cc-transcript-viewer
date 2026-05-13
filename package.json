@@ -1,6 +1,6 @@
 {
   "name": "cc-viewer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local web-UI viewer for Claude Code conversation transcripts",
   "type": "module",
   "bin": {
@@ -15,8 +15,9 @@
     "build:ui": "vite build --config packages/ui/vite.config.ts",
     "copy:ui": "node -e \"const fs=require('node:fs');fs.rmSync('packages/server/public',{recursive:true,force:true});fs.mkdirSync('packages/server/public',{recursive:true});fs.cpSync('packages/ui/dist','packages/server/public',{recursive:true})\"",
     "build:server": "tsc --build packages/server/tsconfig.json",
-    "build": "npm run build:ui && npm run copy:ui && npm run build:server",
-    "clean": "node -e \"['packages/ui/dist','packages/server/dist','packages/server/public'].forEach(p=>require('node:fs').rmSync(p,{recursive:true,force:true}))\"",
+    "inline:shared": "node scripts/inline-shared.mjs",
+    "build": "npm run build:ui && npm run copy:ui && npm run build:server && npm run inline:shared",
+    "clean": "node -e \"['packages/ui/dist','packages/server/dist','packages/shared/dist','packages/server/public','packages/ui/tsconfig.tsbuildinfo','packages/server/tsconfig.tsbuildinfo','packages/shared/tsconfig.tsbuildinfo'].forEach(p=>require('node:fs').rmSync(p,{recursive:true,force:true}))\"",
     "typecheck": "tsc --build",
     "test": "npm --workspace @cc-viewer/server run test && npm --workspace @cc-viewer/ui run test",
     "prepare": "npm run build",
