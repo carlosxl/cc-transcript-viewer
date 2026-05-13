@@ -1,4 +1,5 @@
 import type { ToolUse } from '@cc-viewer/shared'
+import { safeStringify } from './safeStringify'
 
 /**
  * Best-effort "Copy command" formatter. The button label is "Copy command",
@@ -11,7 +12,7 @@ import type { ToolUse } from '@cc-viewer/shared'
  *   - Glob       → `find <path> -name '<pattern>' -type f`
  *   - Grep       → `grep -R '<pattern>' <path>` (or rg-style fallback)
  *   - WebFetch   → `curl <url>`
- *   - everything else → `# tool=<name>\n${JSON.stringify(input, null, 2)}`
+ *   - everything else → `# tool=<name>\n${safeStringify(input)}`
  */
 export function formatCommand(toolUse: ToolUse): string {
   const input = toolUse.input
@@ -27,7 +28,7 @@ export function formatCommand(toolUse: ToolUse): string {
   switch (toolUse.name) {
     case 'Bash': {
       const cmd = str('command')
-      return cmd || `# Bash via Claude Code\n${JSON.stringify(input, null, 2)}`
+      return cmd || `# Bash via Claude Code\n${safeStringify(input)}`
     }
     case 'Read': {
       const path = str('file_path')
@@ -64,7 +65,7 @@ export function formatCommand(toolUse: ToolUse): string {
 }
 
 function jsonFallback(toolUse: ToolUse): string {
-  return `# tool=${toolUse.name}\n${JSON.stringify(toolUse.input, null, 2)}`
+  return `# tool=${toolUse.name}\n${safeStringify(toolUse.input)}`
 }
 
 /** POSIX single-quote escape — safe for arbitrary file paths and patterns. */

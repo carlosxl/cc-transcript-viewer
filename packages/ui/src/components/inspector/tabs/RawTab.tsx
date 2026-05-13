@@ -1,4 +1,5 @@
 import type { ToolInteraction, ToolUse, ToolResult } from '@cc-viewer/shared'
+import { safeStringify } from '@/lib/safeStringify'
 
 interface RawTabProps {
   interaction: ToolInteraction
@@ -16,7 +17,7 @@ export function RawTab({ interaction, toolUse, toolResult }: RawTabProps) {
         </span>
       </div>
       <pre className="font-mono text-[11.5px] text-[var(--code-text)] p-3 overflow-x-auto whitespace-pre-wrap break-words">
-        {JSON.stringify(blob, null, 2)}
+        {safeStringify(blob)}
       </pre>
     </div>
   )

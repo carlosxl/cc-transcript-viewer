@@ -35,7 +35,7 @@ export function ProjectSection({
       <button
         type="button"
         onClick={() => toggle(projectSlug)}
-        className="w-full px-3 py-1.5 flex items-center gap-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary uppercase tracking-wide font-semibold text-[10.5px] text-[var(--text-3,theme(colors.muted.foreground))]"
+        className="w-full px-3 py-1.5 flex items-center gap-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary uppercase tracking-wide font-semibold text-[10.5px] text-[var(--text-3)]"
         aria-expanded={!isCollapsed}
       >
         {isCollapsed

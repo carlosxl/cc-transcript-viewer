@@ -27,7 +27,7 @@ export function BottomSheet({ open, onOpenChange, children, className, ariaLabel
           aria-label={ariaLabel}
           className={cn(
             'fixed left-0 right-0 bottom-0 z-50 h-[78vh] bg-card border-t border-border-strong rounded-t-xl shadow-lg outline-none flex flex-col',
-            'data-[state=closed]:translate-y-full data-[state=open]:translate-y-0 transition-transform duration-260 ease-out',
+            'data-[state=closed]:translate-y-full data-[state=open]:translate-y-0 transition-transform duration-[260ms] ease-out',
             className,
           )}
         >
