@@ -34,9 +34,12 @@ vi.mock('@/hooks/useFlatNodes', async () => {
   const { useUIStore } = await import('@/stores/useUIStore')
   const { buildFlatNodes } = await import('@/lib/flatNodes')
   return {
-    useFlatNodes: (turns: import('@cc-viewer/shared').Turn[]) => {
-      const mode = useUIStore.getState().viewMode
-      return buildFlatNodes(turns, mode)
+    useFlatNodes: (
+      turns: import('@cc-viewer/shared').Turn[],
+      _interactions?: unknown,
+    ) => {
+      const showThinking = useUIStore.getState().viewMode === 'details'
+      return buildFlatNodes(turns, { showThinking, hasDiff: () => false })
     },
   }
 })
@@ -98,6 +101,9 @@ describe('TranscriptPane', () => {
       usage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0,
                byAgent: { '': { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 } } },
       parseWarnings: 0,
+      toolInteractions: [],
+      tokenSeries: { points: [], byModel: [], spikes: [], cacheHitPct: 0, avgPerTurn: 0 },
+      fileTouchIndex: { files: [] },
     })
     withQuery(<TranscriptPane />)
     await waitFor(() => expect(screen.getByText(/hello world/)).toBeInTheDocument())
@@ -114,6 +120,9 @@ describe('TranscriptPane', () => {
       usage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0,
                byAgent: { '': { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 } } },
       parseWarnings: 0,
+      toolInteractions: [],
+      tokenSeries: { points: [], byModel: [], spikes: [], cacheHitPct: 0, avgPerTurn: 0 },
+      fileTouchIndex: { files: [] },
     })
     withQuery(<TranscriptPane />)
     await waitFor(() => expect(screen.getByText(/no displayable turns/i)).toBeInTheDocument())
@@ -140,6 +149,9 @@ describe('TranscriptPane — sibling-flex header (plan 02-09)', () => {
       usage: { inputTokens: 100, outputTokens: 50, cacheCreationTokens: 10, cacheReadTokens: 20,
                byAgent: { '': { inputTokens: 100, outputTokens: 50, cacheCreationTokens: 10, cacheReadTokens: 20 } } },
       parseWarnings: 0,
+      toolInteractions: [],
+      tokenSeries: { points: [], byModel: [], spikes: [], cacheHitPct: 0, avgPerTurn: 0 },
+      fileTouchIndex: { files: [] },
     })
     withQuery(<TranscriptPane />)
     await waitFor(() => {
@@ -166,6 +178,9 @@ describe('TranscriptPane — sibling-flex header (plan 02-09)', () => {
       usage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0,
                byAgent: { '': { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 } } },
       parseWarnings: 0,
+      toolInteractions: [],
+      tokenSeries: { points: [], byModel: [], spikes: [], cacheHitPct: 0, avgPerTurn: 0 },
+      fileTouchIndex: { files: [] },
     })
     withQuery(<TranscriptPane />)
     await waitFor(() => expect(screen.getByText('content')).toBeInTheDocument())
@@ -184,6 +199,9 @@ describe('TranscriptPane — sibling-flex header (plan 02-09)', () => {
       usage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0,
                byAgent: { '': { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 } } },
       parseWarnings: 0,
+      toolInteractions: [],
+      tokenSeries: { points: [], byModel: [], spikes: [], cacheHitPct: 0, avgPerTurn: 0 },
+      fileTouchIndex: { files: [] },
     })
     withQuery(<TranscriptPane />)
     await waitFor(() => expect(screen.getByText('body')).toBeInTheDocument())
@@ -205,6 +223,9 @@ describe('TranscriptPane — sibling-flex header (plan 02-09)', () => {
       usage: { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0,
                byAgent: { '': { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 } } },
       parseWarnings: 0,
+      toolInteractions: [],
+      tokenSeries: { points: [], byModel: [], spikes: [], cacheHitPct: 0, avgPerTurn: 0 },
+      fileTouchIndex: { files: [] },
     })
     withQuery(<TranscriptPane />)
     await waitFor(() => {

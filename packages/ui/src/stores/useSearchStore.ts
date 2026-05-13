@@ -17,6 +17,11 @@ export interface JumpTarget {
   sessionId: string
   agentId: string | null
   turnUuid: string
+  /**
+   * Phase 5: when set, scroll to the matching tool-capsule row (instead of the
+   * turn row) and flash it. Used by Inspector "Jump back". Form: `${turnUuid}:${toolUseId}`.
+   */
+  interactionId?: string
 }
 
 interface SearchState {

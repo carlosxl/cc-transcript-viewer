@@ -1,50 +1,72 @@
-import { User, Wrench } from 'lucide-react'
+import { User } from 'lucide-react'
 import type { Turn } from '@cc-viewer/shared'
 import { ContentPreview } from './ContentPreview'
 import { formatTurnTimestamp } from '@/lib/format'
+import { classifyUserText } from '@/lib/classifyUserText'
+import { CommandBlock } from './CommandBlock'
+import { StderrBlock } from './StderrBlock'
 
+/**
+ * Phase 4 redesign — round avatar with user-tint, mono timestamp baseline.
+ *
+ * User turns that classify as `/command` or `<local-command-stderr>` are
+ * handed off to dedicated blocks; the avatar+label chrome only appears for
+ * plain user prose.
+ */
 export function UserTurn({ turn }: { turn: Turn }) {
   const text = Array.isArray(turn.textBlocks) ? turn.textBlocks.join('\n\n') : ''
-  const resultCount = turn.toolResults?.length ?? 0
-  // The Anthropic API nests tool_result blocks inside user-role messages, so
-  // the JSONL "user" role conflates two distinct things: a real human prompt
-  // and the protocol-shaped envelope wrapping a tool result. When this turn
-  // has no text and only tool_results, relabel + reicon so the UI reflects
-  // what the row actually represents to a human reader. (In compact view
-  // mode, these tool-result-only turns are filtered out by buildFlatNodes.)
-  const isToolResultOnly = text.length === 0 && resultCount > 0
+  const classified = classifyUserText(text)
+
+  if (classified.kind === 'command') {
+    // Render the command capsule. When the command emitted a stderr block,
+    // render that immediately under it (matches the design's stacked pattern).
+    return (
+      <>
+        <CommandBlock turn={turn} />
+        {classified.stderr && <StderrBlock turn={turn} />}
+      </>
+    )
+  }
+  if (classified.kind === 'stderr') {
+    return <StderrBlock turn={turn} />
+  }
+
   const ts = formatTurnTimestamp(turn.timestamp)
   return (
     <div
-      className={`px-4 py-3 border-b border-border border-l-2 ${
-        isToolResultOnly ? 'border-l-muted-foreground/30' : 'border-l-amber-500/60'
-      }`}
-      data-role={isToolResultOnly ? 'tool-result' : 'user'}
+      className="px-4 py-2 flex gap-3"
+      data-role="user"
       data-turn-uuid={turn.uuid}
     >
-      <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-foreground">
-        {isToolResultOnly
-          ? <Wrench className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
-          : <User className="w-4 h-4 text-foreground" aria-hidden="true" />}
-        <span className={isToolResultOnly ? 'text-muted-foreground' : undefined}>
-          {isToolResultOnly ? 'Tool result' : 'User'}
-        </span>
-        {ts && (
-          <time
-            className="ml-auto text-[11px] font-normal text-muted-foreground tabular-nums"
-            dateTime={turn.timestamp}
-            title={turn.timestamp}
-          >
-            {ts}
-          </time>
+      <div
+        className="flex-shrink-0 w-7 h-7 rounded-full inline-flex items-center justify-center"
+        style={{ background: 'var(--user-tint)', color: 'var(--user-text)' }}
+        aria-hidden="true"
+      >
+        <User className="w-3.5 h-3.5" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2 mb-1.5">
+          <span className="text-sm font-semibold text-foreground">You</span>
+          {ts && (
+            <time
+              className="text-[10px] font-mono text-muted-foreground tabular-nums"
+              dateTime={turn.timestamp}
+              title={turn.timestamp}
+            >
+              {ts}
+            </time>
+          )}
+        </div>
+        {classified.text.length > 0 && (
+          <ContentPreview
+            content={classified.text}
+            render={(t) => (
+              <pre className="text-sm font-sans whitespace-pre-wrap">{t}</pre>
+            )}
+          />
         )}
       </div>
-      {text.length > 0 && (
-        <ContentPreview
-          content={text}
-          render={(t) => <pre className="text-sm font-sans whitespace-pre-wrap">{t}</pre>}
-        />
-      )}
     </div>
   )
 }

@@ -1,7 +1,11 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* Tailwind v4 dark variant — fires when <html data-theme="dark"> is set. */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 @theme inline {
+  /* shadcn semantic colors (re-pointed below to warm-neutral palette) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -25,52 +29,256 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Design-native first-class tokens — surfaces */
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-inset: var(--surface-inset);
+
+  /* Design-native — extra text shades */
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-text-4: var(--text-4);
+
+  /* Design-native — extra border shades */
+  --color-border-strong: var(--border-strong);
+  --color-border-subtle: var(--border-subtle);
+
+  /* Design-native — brand (rust) cluster, separate from shadcn's --accent */
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-text: var(--brand-text);
+
+  /* Design-native — role tints */
+  --color-user-tint: var(--user-tint);
+  --color-user-text: var(--user-text);
+  --color-user-rail: var(--user-rail);
+  --color-claude-tint: var(--claude-tint);
+  --color-claude-text: var(--claude-text);
+  --color-claude-rail: var(--claude-rail);
+  --color-tool-tint: var(--tool-tint);
+  --color-tool-text: var(--tool-text);
+  --color-tool-rail: var(--tool-rail);
+  --color-think-tint: var(--think-tint);
+  --color-think-text: var(--think-text);
+
+  /* Design-native — semantic */
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  /* Design-native — code */
+  --color-code-bg: var(--code-bg);
+  --color-code-border: var(--code-border);
+  --color-code-text: var(--code-text);
+
+  /* Design-native — diff */
+  --color-diff-add-bg: var(--diff-add-bg);
+  --color-diff-add-text: var(--diff-add-text);
+  --color-diff-add-gutter: var(--diff-add-gutter);
+  --color-diff-rm-bg: var(--diff-rm-bg);
+  --color-diff-rm-text: var(--diff-rm-text);
+  --color-diff-rm-gutter: var(--diff-rm-gutter);
+
+  /* Design-native — font families (exposed as font-sans/font-mono/font-serif) */
+  --font-sans: var(--font-sans-stack);
+  --font-mono: var(--font-mono-stack);
+  --font-serif: var(--font-serif-stack);
 }
 
-:root {
-  --radius: 0.5rem;
-  --background: #ffffff;
-  --foreground: #09090b;
-  --card: #ffffff;
-  --card-foreground: #09090b;
-  --popover: #ffffff;
-  --popover-foreground: #09090b;
-  --primary: #18181b;
-  --primary-foreground: #fafafa;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
-  --destructive: #ef4444;
-  --destructive-foreground: #fafafa;
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #18181b;
+:root, [data-theme="light"] {
+  /* shadcn semantic — re-pointed to warm-neutral palette */
+  --background: #FAF9F6;
+  --foreground: #1F1E1C;
+  --card: #FFFFFF;
+  --card-foreground: #1F1E1C;
+  --popover: #FFFFFF;
+  --popover-foreground: #1F1E1C;
+  --primary: #C96442;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F4F2EC;
+  --secondary-foreground: #1F1E1C;
+  --muted: #F4F2EC;
+  --muted-foreground: #58544D;
+  --accent: #F4F2EC;            /* shadcn semantic = hover surface, NOT brand */
+  --accent-foreground: #1F1E1C;
+  --destructive: #B5392F;
+  --destructive-foreground: #FFFFFF;
+  --border: #E8E4DC;
+  --input: #E8E4DC;
+  --ring: #C96442;
+  --radius: 0.625rem;           /* design's --r-2 = 10px */
+
+  /* Surfaces */
+  --surface: #FFFFFF;
+  --surface-2: #F4F2EC;
+  --surface-3: #ECE9E1;
+  --surface-inset: #F8F6F1;
+
+  /* Extra text shades */
+  --text-2: #58544D;
+  --text-3: #8B867D;
+  --text-4: #B5B0A6;
+
+  /* Extra border shades */
+  --border-strong: #D8D2C6;
+  --border-subtle: #F0EDE5;
+
+  /* Brand (rust) — design's --accent cluster, renamed to avoid collision */
+  --brand: #C96442;
+  --brand-hover: #B25636;
+  --brand-soft: #F5E6DD;
+  --brand-text: #8A3F26;
+
+  /* Role tints */
+  --user-tint: #EEF2F7;
+  --user-text: #2C4E6E;
+  --user-rail: #94B0CC;
+  --claude-tint: #F7EFE7;
+  --claude-text: #8A3F26;
+  --claude-rail: #C96442;
+  --tool-tint: #F1EFE9;
+  --tool-text: #4A4540;
+  --tool-rail: #B5AC9A;
+  --think-tint: #F0EFEB;
+  --think-text: #6A6359;
+
+  /* Semantic */
+  --success: #2F7D4F;
+  --success-soft: #E1F0E6;
+  --warn: #B5781E;
+  --warn-soft: #F6ECD5;
+  --danger: #B5392F;
+  --danger-soft: #F6DEDA;
+  --info: #2F6FB5;
+  --info-soft: #DDE9F6;
+
+  /* Code */
+  --code-bg: #F4F2EC;
+  --code-border: #E5E1D8;
+  --code-text: #2A2722;
+
+  /* Diff */
+  --diff-add-bg: #E6F1E5;
+  --diff-add-text: #1F5E2A;
+  --diff-add-gutter: #C8E0C2;
+  --diff-rm-bg: #F7E1DC;
+  --diff-rm-text: #8E2B22;
+  --diff-rm-gutter: #ECC2BA;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(40,30,20,.06);
+  --shadow-md: 0 4px 14px rgba(40,30,20,.08), 0 1px 2px rgba(40,30,20,.04);
+  --shadow-lg: 0 18px 48px rgba(40,30,20,.14), 0 2px 6px rgba(40,30,20,.06);
+
+  /* Radii scale (shadcn --radius above maps to --r-2) */
+  --r-1: 6px;
+  --r-2: 10px;
+  --r-3: 14px;
+  --r-pill: 999px;
+
+  /* Type stacks — referenced by @theme as --font-sans/-mono/-serif */
+  --font-sans-stack: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-serif-stack: "Instrument Serif", "Iowan Old Style", "Palatino", Georgia, serif;
+  --font-mono-stack: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-.dark {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #09090b;
-  --card-foreground: #fafafa;
-  --popover: #09090b;
-  --popover-foreground: #fafafa;
-  --primary: #fafafa;
-  --primary-foreground: #18181b;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --accent: #27272a;
-  --accent-foreground: #fafafa;
-  --destructive: #7f1d1d;
-  --destructive-foreground: #fafafa;
-  --border: #27272a;
-  --input: #27272a;
-  --ring: #d4d4d8;
+[data-theme="dark"] {
+  /* shadcn semantic — re-pointed for dark */
+  --background: #161513;
+  --foreground: #F2EFE8;
+  --card: #1E1C19;
+  --card-foreground: #F2EFE8;
+  --popover: #1E1C19;
+  --popover-foreground: #F2EFE8;
+  --primary: #E5876A;
+  --primary-foreground: #161513;
+  --secondary: #25221E;
+  --secondary-foreground: #F2EFE8;
+  --muted: #25221E;
+  --muted-foreground: #B5B0A6;
+  --accent: #25221E;
+  --accent-foreground: #F2EFE8;
+  --destructive: #E58372;
+  --destructive-foreground: #161513;
+  --border: #2D2A24;
+  --input: #2D2A24;
+  --ring: #E5876A;
+
+  /* Surfaces */
+  --surface: #1E1C19;
+  --surface-2: #25221E;
+  --surface-3: #2D2A24;
+  --surface-inset: #1A1814;
+
+  /* Extra text shades */
+  --text-2: #B5B0A6;
+  --text-3: #82796D;
+  --text-4: #5E5750;
+
+  /* Extra border shades */
+  --border-strong: #3A362F;
+  --border-subtle: #25221E;
+
+  /* Brand */
+  --brand: #E5876A;
+  --brand-hover: #F09C81;
+  --brand-soft: #3B2A22;
+  --brand-text: #F0A487;
+
+  /* Role tints */
+  --user-tint: #1F2731;
+  --user-text: #B7D0E8;
+  --user-rail: #5279A4;
+  --claude-tint: #2A1F1A;
+  --claude-text: #F0A487;
+  --claude-rail: #E5876A;
+  --tool-tint: #232017;
+  --tool-text: #B2A992;
+  --tool-rail: #6A6354;
+  --think-tint: #20201D;
+  --think-text: #9C968A;
+
+  /* Semantic */
+  --success: #6FCB8B;
+  --success-soft: #1E3526;
+  --warn: #E5B362;
+  --warn-soft: #3A2E18;
+  --danger: #E58372;
+  --danger-soft: #3A211D;
+  --info: #7AB3E5;
+  --info-soft: #1E2D3A;
+
+  /* Code */
+  --code-bg: #1A1814;
+  --code-border: #2D2A24;
+  --code-text: #DDD8CD;
+
+  /* Diff */
+  --diff-add-bg: #1B3025;
+  --diff-add-text: #98D3A1;
+  --diff-add-gutter: #244A33;
+  --diff-rm-bg: #3A211D;
+  --diff-rm-text: #E59A8B;
+  --diff-rm-gutter: #5A2A24;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 4px 14px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3);
+  --shadow-lg: 0 18px 48px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.3);
 }
+
+/* Density + serif-titles overrides (driven by <body data-density="..."> etc) */
+body[data-density="compact"] { font-size: 13px; line-height: 1.35; }
+body[data-serif-titles="y"] h1,
+body[data-serif-titles="y"] h2 { font-family: var(--font-serif-stack); }
 
 @layer base {
   * {
@@ -80,6 +288,7 @@
   body {
     background-color: var(--background);
     color: var(--foreground);
+    font-family: var(--font-sans-stack);
   }
 }
 
@@ -115,4 +324,28 @@
 
 [data-testid="virtuoso-scroller"]::-webkit-scrollbar-thumb:hover {
   background-color: var(--muted-foreground);
+}
+
+/*
+ * Transient flash on jump-back (Phase 5) and search-hit landing (Phase 7).
+ * The transcript row sets `data-flash="true"` for ~900ms after Virtuoso
+ * scrolls it into view; the keyframe fades a primary-tint outline out.
+ * Phase 8: gated on `prefers-reduced-motion: no-preference` so users who ask
+ * for reduced motion get the highlighting without the animation.
+ */
+@keyframes cc-flash-ring {
+  0%   { box-shadow: 0 0 0 2px var(--primary), 0 0 0 4px color-mix(in oklab, var(--primary) 30%, transparent); }
+  100% { box-shadow: 0 0 0 2px transparent, 0 0 0 4px transparent; }
+}
+
+[data-flash="true"] {
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 2px var(--primary), 0 0 0 4px color-mix(in oklab, var(--primary) 30%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-flash="true"] {
+    animation: cc-flash-ring 900ms ease-out;
+    box-shadow: none;
+  }
 }

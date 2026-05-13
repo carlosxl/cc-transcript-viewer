@@ -26,7 +26,12 @@ function meta(over: Partial<SessionMeta> = {}): SessionMeta {
 afterEach(() => cleanup())
 
 beforeEach(() => {
-  useUIStore.setState({ activeSessionId: null, sortOrder: 'desc', expandedProjectSections: new Set() })
+  useUIStore.setState({
+    activeSessionId: null,
+    sortOrder: 'desc',
+    expandedProjectSections: new Set(),
+    pinnedSessions: new Set(),
+  })
   vi.restoreAllMocks()
 })
 
@@ -73,6 +78,25 @@ describe('SessionBrowser', () => {
     await waitFor(() => expect(screen.getAllByText('Newest first').length).toBeGreaterThan(0))
     fireEvent.click(screen.getAllByText('Newest first')[0])
     expect(screen.getAllByText('Oldest first').length).toBeGreaterThan(0)
+  })
+
+  it('pins float to the top of their project group', async () => {
+    // 'newer' is most-recent (would normally appear first under desc).
+    // Pin 'older' and expect it to jump above 'newer' inside the same group.
+    useUIStore.setState({ pinnedSessions: new Set(['older']) })
+    vi.spyOn(api, 'fetchSessions').mockResolvedValue({
+      sessions: [
+        meta({ sessionId: 'newer', projectSlug: '-a', projectPath: '/a', title: 'Newer',
+               lastTimestamp: '2026-05-02T00:00:00Z' }),
+        meta({ sessionId: 'older', projectSlug: '-a', projectPath: '/a', title: 'Older',
+               lastTimestamp: '2026-05-01T00:00:00Z' }),
+      ],
+    })
+    withQuery(<SessionBrowser />)
+    await waitFor(() => expect(screen.getByText('Newer')).toBeInTheDocument())
+    const titles = screen.getAllByText(/Newer|Older/).map((el) => el.textContent)
+    expect(titles[0]).toBe('Older')
+    expect(titles[1]).toBe('Newer')
   })
 
   it('clicking a session row sets activeSessionId in useUIStore', async () => {

@@ -58,9 +58,10 @@ describe('AppShell', () => {
   it('renders the header slot (empty placeholder, Plan 09 will fill)', () => {
     vi.spyOn(api, 'fetchSessions').mockImplementation(() => new Promise(() => {}))
     const { container } = withQuery(<AppShell />)
-    // HeaderSlot renders an empty div with specific classes — verify it exists in DOM
-    const header = container.querySelector('.h-12.flex-shrink-0')
-    expect(header).toBeTruthy()
+    // Phase 3: TranscriptHeader skeleton banner is now 64px (h-16) — the
+    // sidebar's "Sessions" header is still 48px (h-12).
+    const banners = container.querySelectorAll('.h-16.flex-shrink-0, .h-12.flex-shrink-0')
+    expect(banners.length).toBeGreaterThan(0)
   })
 
   it('uses ResizablePanelGroup (two-pane layout present)', () => {
@@ -70,10 +71,17 @@ describe('AppShell', () => {
     expect(group).toBeTruthy()
   })
 
-  it('has two resizable panels', () => {
+  it('has three resizable panels (sidebar, main, rail)', () => {
     vi.spyOn(api, 'fetchSessions').mockImplementation(() => new Promise(() => {}))
     const { container } = withQuery(<AppShell />)
     const panels = container.querySelectorAll('[data-slot="resizable-panel"]')
-    expect(panels.length).toBe(2)
+    expect(panels.length).toBe(3)
+  })
+
+  it('renders the RightRail in the third pane', () => {
+    vi.spyOn(api, 'fetchSessions').mockImplementation(() => new Promise(() => {}))
+    const { container } = withQuery(<AppShell />)
+    const rail = container.querySelector('aside[aria-label="Inspector rail"]')
+    expect(rail).toBeTruthy()
   })
 })

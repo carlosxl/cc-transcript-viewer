@@ -1,7 +1,7 @@
 import { Wrench, AlertCircle } from 'lucide-react'
 import type { Turn } from '@cc-viewer/shared'
 import { ContentPreview } from './ContentPreview'
-import { safeStringify } from './ToolCallRow'
+import { safeStringify } from '@/lib/safeStringify'
 import { cn } from '@/lib/utils'
 
 interface ToolResultRowProps {

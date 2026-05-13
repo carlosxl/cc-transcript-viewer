@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"/>
+<title>Workspace — Claude Code transcripts</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="tokens.css"/>
+<style>
+  html, body, #root { margin:0; padding:0; height:100%; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-sans); }
+  .cc-icon-btn {
+    display: inline-flex; align-items:center; gap:4px;
+    padding:3px 7px; font-size:11px; font-family: inherit;
+    background:transparent; border:1px solid transparent; color: var(--text-3);
+    border-radius: 6px; cursor:pointer;
+  }
+  .cc-icon-btn:hover { background: var(--surface-3); color: var(--text); border-color: var(--border); }
+  input::placeholder { color: var(--text-3); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="data.jsx"></script>
+<script type="text/babel" src="workspace-data.jsx"></script>
+<script type="text/babel" src="workspace-code.jsx"></script>
+<script type="text/babel" src="workspace-inspector.jsx"></script>
+<script type="text/babel" src="workspace-rail.jsx"></script>
+<script type="text/babel" src="workspace-search.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="workspace-app.jsx"></script>
+
+<script type="text/babel">
+  const TWEAKS = /*EDITMODE-BEGIN*/{
+    "theme": "light",
+    "accent": "#C96442",
+    "density": "compact",
+    "serifTitles": true,
+    "showThinking": true,
+    "narrowLayout": false
+  }/*EDITMODE-END*/;
+
+  function App() {
+    const [t, setTweak] = useTweaks(TWEAKS);
+    React.useEffect(() => { document.documentElement.setAttribute("data-theme", t.theme); }, [t.theme]);
+    React.useEffect(() => { document.body.setAttribute("data-density", t.density); }, [t.density]);
+    React.useEffect(() => { document.body.setAttribute("data-show-thinking", t.showThinking ? "y" : "n"); }, [t.showThinking]);
+    React.useEffect(() => { document.body.setAttribute("data-serif-titles", t.serifTitles ? "y" : "n"); }, [t.serifTitles]);
+    React.useEffect(() => { document.documentElement.style.setProperty("--accent", t.accent); }, [t.accent]);
+
+    return (
+      <>
+        <Workspace tweaks={t} forceNarrow={t.narrowLayout}/>
+        <TweaksPanel title="Tweaks">
+          <TweakSection title="Theme">
+            <TweakRadio label="Mode" value={t.theme} onChange={v => setTweak("theme", v)}
+              options={[{value:"light", label:"Light"}, {value:"dark", label:"Dark"}]}/>
+            <TweakColor label="Accent" value={t.accent} onChange={v => setTweak("accent", v)}
+              options={["#C96442", "#8A6F3F", "#3F6F8A", "#7A5AE0"]}/>
+          </TweakSection>
+          <TweakSection title="Display">
+            <TweakRadio label="Density" value={t.density} onChange={v => setTweak("density", v)}
+              options={[{value:"regular", label:"Regular"}, {value:"compact", label:"Compact"}]}/>
+            <TweakToggle label="Serif titles" value={t.serifTitles} onChange={v => setTweak("serifTitles", v)}/>
+            <TweakToggle label="Show thinking" value={t.showThinking} onChange={v => setTweak("showThinking", v)}/>
+            <TweakToggle label="Narrow layout (mobile preview)" value={t.narrowLayout} onChange={v => setTweak("narrowLayout", v)}/>
+          </TweakSection>
+        </TweaksPanel>
+      </>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

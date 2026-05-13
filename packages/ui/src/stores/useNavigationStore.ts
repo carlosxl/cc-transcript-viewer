@@ -22,6 +22,13 @@ export interface SubagentFrame {
 interface NavState {
   /** Subagents drilled into on top of the active session. Empty = at session root. */
   drillStack: SubagentFrame[]
+  /** Index into the flat-node array of the currently focused transcript row.
+   *  `-1` means "no row focused". Driven by j/k keyboard shortcuts (Phase 3). */
+  focusedMsgIndex: number
+  /** Id of the ToolInteraction selected by the user (`${turnUuid}:${toolUseId}`).
+   *  Phase 4: capsules + diff blocks write this; Phase 5 binds the right rail
+   *  to it. `null` = nothing selected. Resets on entry change. */
+  selectedInteractionId: string | null
   /** Push a subagent drill-in onto the stack. */
   pushSubagent: (frame: SubagentFrame) => void
   /** Pop the top subagent (one level back toward the parent). */
@@ -30,14 +37,23 @@ interface NavState {
   truncateTo: (n: number) => void
   /** Replace the entire drill stack — used by hash decoder + session changes. */
   setDrillStack: (stack: SubagentFrame[]) => void
+  /** Set the focused message index (clamped at the call site). */
+  setFocusedMsgIndex: (i: number) => void
+  /** Set (or clear) the currently selected tool interaction. */
+  setSelectedInteractionId: (id: string | null) => void
 }
 
 export const useNavigationStore = create<NavState>((set) => ({
   drillStack: [],
+  /** -1 = no row focused (no primary-tint ring). j moves to 0 (first row). */
+  focusedMsgIndex: -1,
+  selectedInteractionId: null,
   pushSubagent: (frame) => set((s) => ({ drillStack: [...s.drillStack, frame] })),
   popSubagent: () => set((s) => ({ drillStack: s.drillStack.slice(0, -1) })),
   truncateTo: (n) => set((s) => ({ drillStack: s.drillStack.slice(0, Math.max(0, n)) })),
   setDrillStack: (stack) => set({ drillStack: stack }),
+  setFocusedMsgIndex: (i) => set({ focusedMsgIndex: i }),
+  setSelectedInteractionId: (id) => set({ selectedInteractionId: id }),
 }))
 
 export type CurrentEntry =

@@ -22,7 +22,11 @@ export function SessionBrowser() {
   const activeSessionId = useUIStore((s) => s.activeSessionId)
   const setActiveSessionId = useUIStore((s) => s.setActiveSessionId)
 
-  const grouped = useMemo(() => groupAndSort(data ?? [], sortOrder), [data, sortOrder])
+  const pinnedSessions = useUIStore((s) => s.pinnedSessions)
+  const grouped = useMemo(
+    () => groupAndSort(data ?? [], sortOrder, pinnedSessions),
+    [data, sortOrder, pinnedSessions],
+  )
 
   return (
     <div className="h-full flex flex-col bg-muted">
@@ -87,19 +91,41 @@ interface Group { projectSlug: string; projectPath: string; sessions: SessionMet
  * each bucket by lastTimestamp per sortOrder, then sort buckets by their
  * most-recent session's lastTimestamp (so the project containing the
  * newest session appears first when sortOrder='desc').
+ *
+ * Pinned sessions (Phase 7) float to the top of their project group,
+ * regardless of sortOrder. Within the pinned tier they keep the same
+ * timestamp order as the rest.
  */
-function groupAndSort(sessions: SessionMeta[], sortOrder: 'desc' | 'asc'): Group[] {
+function groupAndSort(
+  sessions: SessionMeta[],
+  sortOrder: 'desc' | 'asc',
+  pinned: Set<string>,
+): Group[] {
   const map = new Map<string, Group>()
   for (const s of sessions) {
     const g = map.get(s.projectSlug) ?? { projectSlug: s.projectSlug, projectPath: s.projectPath, sessions: [] }
     g.sessions.push(s)
     map.set(s.projectSlug, g)
   }
-  const cmp = sortOrder === 'desc'
+  const tsCmp = sortOrder === 'desc'
     ? (a: SessionMeta, b: SessionMeta) => b.lastTimestamp.localeCompare(a.lastTimestamp)
     : (a: SessionMeta, b: SessionMeta) => a.lastTimestamp.localeCompare(b.lastTimestamp)
+  const pinFirst = (a: SessionMeta, b: SessionMeta): number => {
+    const ap = pinned.has(a.sessionId) ? 1 : 0
+    const bp = pinned.has(b.sessionId) ? 1 : 0
+    if (ap !== bp) return bp - ap
+    return tsCmp(a, b)
+  }
   const groups = Array.from(map.values())
-  for (const g of groups) g.sessions.sort(cmp)
-  groups.sort((a, b) => cmp(a.sessions[0]!, b.sessions[0]!))
+  // Bucket ordering ignores the pin tier — projects sort by their newest session
+  // (timestamp only) so a pinned session in an old project doesn't shove the
+  // whole project to top. Compute the bucket anchor BEFORE applying pinFirst.
+  const anchor = new Map<string, SessionMeta>()
+  for (const g of groups) {
+    const sortedByTs = [...g.sessions].sort(tsCmp)
+    anchor.set(g.projectSlug, sortedByTs[0]!)
+  }
+  for (const g of groups) g.sessions.sort(pinFirst)
+  groups.sort((a, b) => tsCmp(anchor.get(a.projectSlug)!, anchor.get(b.projectSlug)!))
   return groups
 }

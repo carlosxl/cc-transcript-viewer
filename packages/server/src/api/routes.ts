@@ -15,7 +15,12 @@ import type {
   Turn,
   UsageBlock,
 } from '@cc-viewer/shared'
-import { buildSessionReport } from '@cc-viewer/shared'
+import {
+  buildSessionReport,
+  buildToolInteractions,
+  buildTokenSeries,
+  buildFileTouchIndex,
+} from '@cc-viewer/shared'
 import { SessionMap } from '../reader/session-map.js'
 import { loadSessionFromDisk } from '../reader/session-loader.js'
 import { SessionCache } from '../reader/session-cache.js'
@@ -144,6 +149,9 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
         subagents: session.subagents,
         usage: session.totalUsage,
         parseWarnings: session.parseWarnings,
+        toolInteractions: buildToolInteractions(session.turns),
+        tokenSeries: buildTokenSeries(session.turns),
+        fileTouchIndex: buildFileTouchIndex(session.turns),
       }
       sessionCache.set(id, { response: body }, mtimeMs)
       return c.json(body)
@@ -209,6 +217,9 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
         turns: sa.turns,
         childAgentIds: sa.childAgentIds,
         usage: sumTurnUsage(sa.turns),
+        toolInteractions: buildToolInteractions(sa.turns),
+        tokenSeries: buildTokenSeries(sa.turns),
+        fileTouchIndex: buildFileTouchIndex(sa.turns),
       }
       return c.json(body)
     } catch (err) {

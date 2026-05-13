@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { SessionRow } from './SessionRow'
+import { useUIStore } from '@/stores/useUIStore'
 import type { SessionMeta } from '@cc-viewer/shared'
 
 function meta(over: Partial<SessionMeta> = {}): SessionMeta {
@@ -22,6 +23,11 @@ function meta(over: Partial<SessionMeta> = {}): SessionMeta {
     ...over,
   }
 }
+
+afterEach(() => cleanup())
+beforeEach(() => {
+  useUIStore.setState({ pinnedSessions: new Set() })
+})
 
 describe('SessionRow', () => {
   it('renders title and message count', () => {
@@ -68,5 +74,20 @@ describe('SessionRow', () => {
     const { container } = render(<SessionRow session={meta()} active={false} onSelect={onSelect} />)
     fireEvent.keyDown(container.querySelector('[role="button"]')!, { key: 'Enter' })
     expect(onSelect).toHaveBeenCalled()
+  })
+
+  it('star button toggles pinnedSessions and does NOT trigger row select', () => {
+    const onSelect = vi.fn()
+    const { container } = render(
+      <SessionRow session={meta({ sessionId: 'pin-me' })} active={false} onSelect={onSelect} />,
+    )
+    const star = container.querySelector('button[aria-label="Star session"]') as HTMLButtonElement
+    expect(star).not.toBeNull()
+    fireEvent.click(star)
+    expect(useUIStore.getState().pinnedSessions.has('pin-me')).toBe(true)
+    expect(onSelect).not.toHaveBeenCalled()
+    const unstar = container.querySelector('button[aria-label="Unstar session"]') as HTMLButtonElement
+    fireEvent.click(unstar)
+    expect(useUIStore.getState().pinnedSessions.has('pin-me')).toBe(false)
   })
 })

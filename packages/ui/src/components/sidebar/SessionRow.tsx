@@ -1,6 +1,8 @@
+import { Star } from 'lucide-react'
 import type { SessionMeta } from '@cc-viewer/shared'
 import { compactNumber, relativeTime } from '@/lib/format'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { useUIStore } from '@/stores/useUIStore'
 import { cn } from '@/lib/utils'
 
 interface SessionRowProps {
@@ -21,6 +23,8 @@ export function SessionRow({ session, active, onSelect }: SessionRowProps) {
   const u = session.totalUsage
   const total = u.inputTokens + u.outputTokens + u.cacheCreationTokens + u.cacheReadTokens
   const breakdown = `In ${compactNumber(u.inputTokens)} / Out ${compactNumber(u.outputTokens)} / C+ ${compactNumber(u.cacheCreationTokens)} / C- ${compactNumber(u.cacheReadTokens)}`
+  const pinned = useUIStore((s) => s.pinnedSessions.has(session.sessionId))
+  const togglePin = useUIStore((s) => s.togglePinnedSession)
 
   return (
     <div
@@ -36,16 +40,36 @@ export function SessionRow({ session, active, onSelect }: SessionRowProps) {
         }
       }}
       className={cn(
-        'relative h-[52px] px-4 py-2 cursor-pointer select-none',
+        'group/row relative h-[52px] px-4 py-2 cursor-pointer select-none',
         'border-l-2 border-transparent',
         'hover:bg-accent',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
         active && 'border-primary bg-accent',
       )}
     >
-      {/* Title (line 1) — 14px/600, truncated */}
-      <div className="text-sm font-semibold truncate text-foreground leading-5">
-        {session.title}
+      {/* Title (line 1) — 14px/600, truncated; star prefix when pinned (Phase 7) */}
+      <div className="text-sm font-semibold truncate text-foreground leading-5 flex items-center gap-1.5">
+        <button
+          type="button"
+          aria-label={pinned ? 'Unstar session' : 'Star session'}
+          aria-pressed={pinned}
+          onClick={(e) => { e.stopPropagation(); togglePin(session.sessionId) }}
+          className={cn(
+            'shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-sm',
+            pinned
+              ? 'text-primary opacity-100'
+              : 'text-muted-foreground opacity-0 group-hover/row:opacity-60 hover:!opacity-100 focus-visible:!opacity-100',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+          )}
+        >
+          <Star
+            className="w-3.5 h-3.5"
+            aria-hidden="true"
+            fill={pinned ? 'currentColor' : 'none'}
+            strokeWidth={pinned ? 0 : 1.8}
+          />
+        </button>
+        <span className="truncate">{session.title}</span>
       </div>
 
       {/* Meta (line 2) — 12px/400 muted */}
