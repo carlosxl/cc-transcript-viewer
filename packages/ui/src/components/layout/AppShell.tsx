@@ -8,6 +8,7 @@ import { SearchPalette } from '@/components/search/SearchPalette'
 import { RightRail } from '@/components/inspector/RightRail'
 import { SidebarDrawer } from '@/components/layout/SidebarDrawer'
 import { BottomSheet } from '@/components/layout/BottomSheet'
+import { SessionReportDrawer } from '@/components/transcript/SessionReportDrawer'
 import { useUIStore } from '@/stores/useUIStore'
 import { useNavigationStore } from '@/stores/useNavigationStore'
 import { useResponsive } from '@/hooks/useResponsive'
@@ -136,6 +137,7 @@ export function AppShell() {
           </button>
         )}
         <SearchPalette />
+        <SessionReportDrawer />
       </div>
     )
   }
@@ -167,6 +169,7 @@ export function AppShell() {
         </ResizablePanel>
       </ResizablePanelGroup>
       <SearchPalette />
+      <SessionReportDrawer />
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SessionBrowser } from './SessionBrowser'
 import { useUIStore } from '@/stores/useUIStore'
+import { useSearchStore } from '@/stores/useSearchStore'
 import * as api from '@/api'
 import type { SessionMeta } from '@cc-viewer/shared'
 
@@ -71,13 +72,36 @@ describe('SessionBrowser', () => {
     expect(screen.getByText('/b')).toBeInTheDocument()
   })
 
-  it('clicking the sort toggle flips the order label', async () => {
+  it('renders the v2 header — brand badge, Transcripts label, overflow button, search button', async () => {
     vi.spyOn(api, 'fetchSessions').mockResolvedValue({ sessions: [meta()] })
     withQuery(<SessionBrowser />)
-    // React StrictMode may render twice; use getAllByText and click the first
-    await waitFor(() => expect(screen.getAllByText('Newest first').length).toBeGreaterThan(0))
-    fireEvent.click(screen.getAllByText('Newest first')[0])
-    expect(screen.getAllByText('Oldest first').length).toBeGreaterThan(0)
+    await waitFor(() => expect(screen.getAllByText('Transcripts')[0]).toBeInTheDocument())
+    // Brand badge
+    expect(screen.getAllByText('C')[0]).toBeInTheDocument()
+    // Overflow button
+    expect(screen.getAllByRole('button', { name: /sidebar overflow menu/i })[0]).toBeInTheDocument()
+    // Search button + placeholder + ⌘K hint
+    expect(screen.getAllByText('Search sessions, tools, files…')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('⌘K')[0]).toBeInTheDocument()
+  })
+
+  it('clicking the search button opens the search palette', async () => {
+    vi.spyOn(api, 'fetchSessions').mockResolvedValue({ sessions: [meta()] })
+    useSearchStore.setState({ isOpen: false })
+    withQuery(<SessionBrowser />)
+    await waitFor(() => expect(screen.getAllByText('Search sessions, tools, files…')[0]).toBeInTheDocument())
+    fireEvent.click(screen.getAllByText('Search sessions, tools, files…')[0])
+    expect(useSearchStore.getState().isOpen).toBe(true)
+  })
+
+  it('overflow popover hosts the sort toggle that dispatches toggleSort', async () => {
+    vi.spyOn(api, 'fetchSessions').mockResolvedValue({ sessions: [meta()] })
+    withQuery(<SessionBrowser />)
+    await waitFor(() => expect(screen.getAllByText('Transcripts')[0]).toBeInTheDocument())
+    fireEvent.click(screen.getAllByRole('button', { name: /sidebar overflow menu/i })[0])
+    await waitFor(() => expect(screen.getAllByText('Sort: Newest first')[0]).toBeInTheDocument())
+    fireEvent.click(screen.getAllByText('Sort: Newest first')[0])
+    expect(useUIStore.getState().sortOrder).toBe('asc')
   })
 
   it('pins float to the top of their project group', async () => {

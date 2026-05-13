@@ -55,13 +55,13 @@ describe('AppShell', () => {
     expect(screen.getAllByText('Select a session').length).toBeGreaterThan(0)
   })
 
-  it('renders the header slot (empty placeholder, Plan 09 will fill)', () => {
+  it('renders the sidebar v2 header (brand badge + Transcripts label)', () => {
     vi.spyOn(api, 'fetchSessions').mockImplementation(() => new Promise(() => {}))
-    const { container } = withQuery(<AppShell />)
-    // Phase 3: TranscriptHeader skeleton banner is now 64px (h-16) — the
-    // sidebar's "Sessions" header is still 48px (h-12).
-    const banners = container.querySelectorAll('.h-16.flex-shrink-0, .h-12.flex-shrink-0')
-    expect(banners.length).toBeGreaterThan(0)
+    withQuery(<AppShell />)
+    // The Inspector-rail-report refactor replaced the fixed-height sidebar
+    // header with the v2 brand row. The new header is identified by its
+    // "Transcripts" label rather than a height class.
+    expect(screen.getAllByText('Transcripts').length).toBeGreaterThan(0)
   })
 
   it('uses ResizablePanelGroup (two-pane layout present)', () => {

@@ -15,6 +15,8 @@ describe('StatusBar', () => {
     expect(screen.getByText('⌘K')).toBeInTheDocument()
     expect(screen.getByText('t')).toBeInTheDocument()
     expect(screen.getByText('Esc')).toBeInTheDocument()
+    expect(screen.getByText('r')).toBeInTheDocument()
+    expect(screen.getByText('report')).toBeInTheDocument()
   })
 
   it('renders the current/total counter', () => {

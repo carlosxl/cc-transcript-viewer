@@ -27,6 +27,7 @@ export function StatusBar({ current, total }: StatusBarProps) {
       <span><Kbd>j</Kbd>/<Kbd>k</Kbd> message</span>
       <span><Kbd>/</Kbd> or <Kbd>⌘K</Kbd> search</span>
       <span><Kbd>t</Kbd> theme</span>
+      <span><Kbd>r</Kbd> report</span>
       <span><Kbd>Esc</Kbd> close</span>
       <span className="flex-1" />
       <span aria-live="polite">

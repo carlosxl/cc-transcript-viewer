@@ -51,7 +51,7 @@ describe('Inspector', () => {
   it('renders the empty state when nothing is selected', () => {
     mockSelected.mockReturnValue(null)
     render(<Inspector />)
-    expect(screen.getByText('Tool inspector')).toBeInTheDocument()
+    expect(screen.getByText('Inspector')).toBeInTheDocument()
   })
 
   it('renders header + tabs when an interaction is selected', () => {

@@ -1,15 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
+import { render, screen, cleanup, act } from '@testing-library/react'
 
-// Mock the tab children — RightRail's job is tab routing, not panel behavior.
+// Mock the rail's child surfaces — RightRail's job is just dispatching to the
+// right one based on selection / focus state.
 vi.mock('./Inspector', () => ({
   Inspector: () => <div data-testid="inspector-mock">inspector</div>,
 }))
-vi.mock('./tabs/TokensPanel', () => ({
-  TokensPanel: () => <div data-testid="tokens-mock">tokens</div>,
+vi.mock('./MessageInspector', () => ({
+  MessageInspector: () => <div data-testid="message-inspector-mock">message-inspector</div>,
 }))
-vi.mock('./tabs/FilesPanel', () => ({
-  FilesPanel: () => <div data-testid="files-mock">files</div>,
+vi.mock('./InspectorEmpty', () => ({
+  InspectorEmpty: () => <div data-testid="inspector-empty-mock">empty</div>,
+}))
+
+// Stub the focused-turn hook so the rail's branch logic is exercised without
+// dragging react-query / session caches into this test.
+const useFocusedTurnMock = vi.fn<() => { turn: { uuid: string; role: 'user' | 'assistant' } } | null>()
+vi.mock('@/hooks/useFocusedTurn', () => ({
+  useFocusedTurn: () => useFocusedTurnMock(),
 }))
 
 import { RightRail } from './RightRail'
@@ -18,45 +26,39 @@ import { useNavigationStore } from '@/stores/useNavigationStore'
 beforeEach(() => {
   useNavigationStore.setState({
     drillStack: [],
-    focusedMsgIndex: 0,
+    focusedMsgIndex: -1,
     selectedInteractionId: null,
   })
+  useFocusedTurnMock.mockReset()
+  useFocusedTurnMock.mockReturnValue(null)
 })
 
 afterEach(cleanup)
 
-describe('RightRail', () => {
-  it('renders the three tab buttons', () => {
+describe('RightRail — priority chain', () => {
+  it('renders no tab strip when nothing is selected and no row is focused', () => {
     render(<RightRail />)
-    expect(screen.getByRole('tab', { name: /Inspector/ })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Tokens/ })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Files/ })).toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.queryByRole('tab')).toBeNull()
+    expect(screen.getByTestId('inspector-empty-mock')).toBeInTheDocument()
   })
 
-  it('defaults to the Inspector tab', () => {
-    render(<RightRail />)
-    expect(screen.getByTestId('inspector-mock')).toBeInTheDocument()
-  })
-
-  it('switches to Tokens panel when clicked', () => {
-    render(<RightRail />)
-    fireEvent.click(screen.getByRole('tab', { name: /Tokens/ }))
-    expect(screen.getByTestId('tokens-mock')).toBeInTheDocument()
-  })
-
-  it('switches to Files panel when clicked', () => {
-    render(<RightRail />)
-    fireEvent.click(screen.getByRole('tab', { name: /Files/ }))
-    expect(screen.getByTestId('files-mock')).toBeInTheDocument()
-  })
-
-  it('selecting an interaction forces switch to Inspector', () => {
-    render(<RightRail />)
-    fireEvent.click(screen.getByRole('tab', { name: /Tokens/ }))
-    expect(screen.queryByTestId('inspector-mock')).not.toBeInTheDocument()
+  it('renders the tool Inspector when a tool/diff is selected (drill-in wins)', () => {
     act(() => {
       useNavigationStore.setState({ selectedInteractionId: 't1:tu1' })
     })
+    useFocusedTurnMock.mockReturnValue({ turn: { uuid: 'aaaa', role: 'assistant' } })
+    render(<RightRail />)
     expect(screen.getByTestId('inspector-mock')).toBeInTheDocument()
+    expect(screen.queryByTestId('message-inspector-mock')).toBeNull()
+    expect(screen.queryByRole('tablist')).toBeNull()
+  })
+
+  it('renders the MessageInspector when a turn is focused and no drill-in is active', () => {
+    useFocusedTurnMock.mockReturnValue({ turn: { uuid: 'aaaa', role: 'assistant' } })
+    render(<RightRail />)
+    expect(screen.getByTestId('message-inspector-mock')).toBeInTheDocument()
+    expect(screen.queryByTestId('inspector-mock')).toBeNull()
+    expect(screen.queryByRole('tablist')).toBeNull()
   })
 })

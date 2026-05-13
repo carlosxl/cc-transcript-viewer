@@ -152,4 +152,19 @@ describe('TranscriptHeader', () => {
     // sessionId text is in the breadcrumb; popover not yet opened.
     expect(screen.getByText('sess-xyz')).toBeInTheDocument()
   })
+
+  it('Test 12 (FR-016): Report button dispatches setSessionReportOpen(true)', () => {
+    renderHeader(makeMeta())
+    expect(useUIStore.getState().sessionReportOpen).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: /session token report/i }))
+    expect(useUIStore.getState().sessionReportOpen).toBe(true)
+  })
+
+  it('Test 13 (FR-016): no SessionReportDrawer is mounted from the header', () => {
+    renderHeader(makeMeta())
+    // The drawer must not be mounted by the header — only the trigger button.
+    // The drawer renders a DialogContent with role="dialog" once mounted.
+    // When the store flag is false, no dialog should be present.
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
 })

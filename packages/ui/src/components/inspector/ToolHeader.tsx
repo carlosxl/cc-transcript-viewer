@@ -79,7 +79,7 @@ export function ToolHeader({ interaction, toolUse, onJumpBack, onClose }: ToolHe
   const summary = argSummary(toolUse.name, toolUse.input)
 
   return (
-    <div className="px-4 pt-3 pb-2 border-b border-border bg-background">
+    <div className="px-4 pt-3 pb-2 border-b border-border">
       <div className="flex items-center gap-2 mb-2">
         <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
           Tool call

@@ -19,6 +19,8 @@ interface UIState {
   narrowSidebarOpen: boolean
   /** Phase 8: narrow-width inspector bottom-sheet open state. Not persisted. */
   narrowSheetOpen: boolean
+  /** Inspector-rail-report feature: shell-level Session Report modal open state. Not persisted. */
+  sessionReportOpen: boolean
   setSidebarWidth: (w: number) => void
   setActiveSessionId: (id: string | null) => void
   setTheme: (t: Theme) => void
@@ -37,6 +39,8 @@ interface UIState {
   togglePinnedSession: (id: string) => void
   setNarrowSidebarOpen: (v: boolean) => void
   setNarrowSheetOpen: (v: boolean) => void
+  setSessionReportOpen: (v: boolean) => void
+  toggleSessionReportOpen: () => void
 }
 
 const THEME_KEY = 'cc-viewer:theme'
@@ -114,6 +118,7 @@ export const useUIStore = create<UIState>((set) => ({
   pinnedSessions: initialPinnedSessions(),
   narrowSidebarOpen: false,
   narrowSheetOpen: false,
+  sessionReportOpen: false,
   setSidebarWidth: (w) => set({ sidebarWidth: w }),
   setActiveSessionId: (id) => set({ activeSessionId: id }),
   setTheme: (t) => { writeLocal(THEME_KEY, t); set({ theme: t }) },
@@ -161,4 +166,6 @@ export const useUIStore = create<UIState>((set) => ({
   }),
   setNarrowSidebarOpen: (v) => set({ narrowSidebarOpen: v }),
   setNarrowSheetOpen: (v) => set({ narrowSheetOpen: v }),
+  setSessionReportOpen: (v) => set({ sessionReportOpen: v }),
+  toggleSessionReportOpen: () => set((s) => ({ sessionReportOpen: !s.sessionReportOpen })),
 }))

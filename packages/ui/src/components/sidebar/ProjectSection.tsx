@@ -1,5 +1,5 @@
 import type { SessionMeta } from '@cc-viewer/shared'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Folder } from 'lucide-react'
 import { useUIStore } from '@/stores/useUIStore'
 import { SessionRow } from './SessionRow'
 
@@ -31,16 +31,19 @@ export function ProjectSection({
   const toggle = useUIStore((s) => s.toggleProjectSection)
 
   return (
-    <section className="border-b border-border last:border-b-0">
+    <section>
       <button
         type="button"
         onClick={() => toggle(projectSlug)}
-        className="w-full px-4 py-2 flex items-center gap-2 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="w-full px-3 py-1.5 flex items-center gap-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary uppercase tracking-wide font-semibold text-[10.5px] text-[var(--text-3,theme(colors.muted.foreground))]"
         aria-expanded={!isCollapsed}
       >
-        {isCollapsed ? <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" />}
-        <span className="text-base font-semibold truncate min-w-0">{projectPath}</span>
-        <span className="ml-auto text-xs text-muted-foreground">{sessions.length}</span>
+        {isCollapsed
+          ? <ChevronRight className="w-[10px] h-[10px] shrink-0" aria-hidden="true" />
+          : <ChevronDown className="w-[10px] h-[10px] shrink-0" aria-hidden="true" />}
+        <Folder className="w-[11px] h-[11px] shrink-0" aria-hidden="true" />
+        <span className="truncate min-w-0">{projectPath}</span>
+        <span className="ml-auto font-mono">{sessions.length}</span>
       </button>
       {!isCollapsed && (
         <div role="list" aria-label={`Sessions in ${projectPath}`}>

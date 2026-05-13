@@ -20,9 +20,13 @@ export function InspectorEmpty() {
         <Wrench className="w-[22px] h-[22px] text-[var(--text-4)]" />
       </div>
       <div>
-        <div className="text-[13.5px] font-semibold text-[var(--text-2)]">Tool inspector</div>
-        <div className="mt-1 text-xs leading-relaxed max-w-[260px]">
-          Click any tool capsule or diff in the transcript to inspect arguments, results, and changes.
+        <div className="text-[13.5px] font-semibold text-[var(--text-2)]">Inspector</div>
+        <div className="mt-1 text-xs leading-relaxed max-w-[280px]">
+          Use{' '}
+          <kbd className="font-mono text-[10.5px] border border-border rounded-sm px-1 bg-[var(--surface)]">j</kbd>
+          /
+          <kbd className="font-mono text-[10.5px] border border-border rounded-sm px-1 bg-[var(--surface)]">k</kbd>
+          {' '}to browse turns, or click any tool capsule or diff to inspect arguments, results, and changes.
         </div>
       </div>
       <div className="flex gap-1.5 flex-wrap justify-center mt-1">

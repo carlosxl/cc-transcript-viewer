@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Info, AlertTriangle, MessageSquare, ListTree, BarChart3, Sun, Moon,
   Star, Folder, PanelRight, Menu,
@@ -10,7 +9,6 @@ import { abbreviateInt, formatExactInt, formatTimestampExact } from '@/lib/forma
 import { useUIStore } from '@/stores/useUIStore'
 import { useResponsive } from '@/hooks/useResponsive'
 import { cn } from '@/lib/utils'
-import { SessionReportDrawer } from './SessionReportDrawer'
 import { MetricChip } from './MetricChip'
 
 // Privacy: this component surfaces only fields already on SessionMeta plus the
@@ -191,7 +189,7 @@ function HamburgerButton() {
 }
 
 export function TranscriptHeader({ meta, topModel, showModeToggle }: TranscriptHeaderProps) {
-  const [reportOpen, setReportOpen] = useState(false)
+  const openReport = useUIStore((s) => s.setSessionReportOpen)
   const { narrow } = useResponsive()
 
   // Loading / no-active-session: render the 64px shell so layout stays stable.
@@ -275,7 +273,7 @@ export function TranscriptHeader({ meta, topModel, showModeToggle }: TranscriptH
             <button
               type="button"
               aria-label="Session token report"
-              onClick={() => setReportOpen(true)}
+              onClick={() => openReport(true)}
               className="w-7 h-7 inline-flex items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <BarChart3 className="w-4 h-4" aria-hidden="true" />
@@ -283,11 +281,6 @@ export function TranscriptHeader({ meta, topModel, showModeToggle }: TranscriptH
           </TooltipTrigger>
           <TooltipContent>Token consumption report</TooltipContent>
         </Tooltip>
-        <SessionReportDrawer
-          sessionId={meta.sessionId}
-          open={reportOpen}
-          onOpenChange={setReportOpen}
-        />
 
         <ThemeToggleButton />
         <RightRailToggleButton />

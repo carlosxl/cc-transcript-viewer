@@ -61,7 +61,9 @@ export function TranscriptPane() {
   const nodes: VirtualNode[] = useFlatNodes(turns ?? EMPTY_TURNS, interactions)
 
   // Global keyboard shortcuts (Phase 3) — c, d, t, j, k, /, Escape.
-  useKeyboardShortcuts(nodes.length)
+  // Pass the flat-node array so j/k advances one TURN at a time (skipping
+  // intra-turn child rows like capsules + diffs).
+  useKeyboardShortcuts(nodes)
 
   const headerMeta = onSubagent
     ? buildSubagentMeta(activeSessionId, subagentQuery.data, sessionMeta)
@@ -269,39 +271,48 @@ function VirtualList({ nodes }: { nodes: VirtualNode[] }) {
         atBottomStateChange={(atBottom) => setAutoFollow(atBottom)}
         followOutput={autoFollow ? 'auto' : false}
         increaseViewportBy={{ top: 200, bottom: 800 }}
-        itemContent={(idx, node) => (
-          // Outer padding gives bordered children (capsules, diffs, command
-          // blocks) breathing room from the panel dividers and from each other.
-          // Use explicit pt-*/pb-* (never py-*) so first/last overrides cannot
-          // collide with the baseline padding under tailwind-merge — `py-1.5`
-          // and `pt-5` are in different conflict groups, so twMerge keeps both
-          // and the result then depends on CSS source order. Only the very
-          // first/last rows get extra padding so content doesn't hug the
-          // scroll-viewport edges; every other row uses the same baseline.
-          <div
-            className={cn(
-              'px-4',
-              idx === 0 ? 'pt-5' : 'pt-1.5',
-              idx === nodes.length - 1 ? 'pb-8' : 'pb-1.5',
-            )}
-          >
+        itemContent={(idx, node) => {
+          // The focus block groups every flat-node belonging to the same Turn
+          // — text shell + thinking + capsules + diff all read as one
+          // "selection box" so j/k feels like advancing a message, not a row.
+          const focusedTurnUuid =
+            focusedIdx >= 0 && focusedIdx < nodes.length ? nodes[focusedIdx]!.turn.uuid : null
+          const isFocused = focusedTurnUuid !== null && node.turn.uuid === focusedTurnUuid
+          const isFirstOfFocused =
+            isFocused && (idx === 0 || nodes[idx - 1]!.turn.uuid !== node.turn.uuid)
+          const isLastOfFocused =
+            isFocused && (idx === nodes.length - 1 || nodes[idx + 1]!.turn.uuid !== node.turn.uuid)
+          return (
+            // Outer padding gives bordered children (capsules, diffs, command
+            // blocks) breathing room from the panel dividers and from each
+            // other. Use explicit pt-*/pb-* (never py-*) so first/last
+            // overrides cannot collide with the baseline padding under
+            // tailwind-merge — `py-1.5` and `pt-5` are in different conflict
+            // groups, so twMerge keeps both and the result then depends on CSS
+            // source order. Only the very first/last rows get extra padding so
+            // content doesn't hug the scroll-viewport edges.
             <div
-              data-focused={idx === focusedIdx ? 'true' : undefined}
-              data-flash={flashedKey === node.key ? 'true' : undefined}
               className={cn(
-                'transition-shadow',
-                // ring-offset gives visual breathing room between the ring and
-                // the focused element's border. Critical for bordered capsules
-                // (e.g. /clear's CommandBlock) where `my-1` is a margin that
-                // collapses *outside* this wrapper, leaving the ring flush
-                // against the capsule border.
-                idx === focusedIdx && 'rounded-md ring-1 ring-primary/40 ring-offset-2 ring-offset-background',
+                'px-4',
+                idx === 0 ? 'pt-5' : 'pt-1.5',
+                idx === nodes.length - 1 ? 'pb-8' : 'pb-1.5',
               )}
             >
-              <VirtualNodeRow node={node} />
+              <div
+                data-focused={isFocused ? 'true' : undefined}
+                data-flash={flashedKey === node.key ? 'true' : undefined}
+                className={cn(
+                  'transition-colors border-l-2 border-transparent',
+                  isFocused && 'bg-muted/40',
+                  isFirstOfFocused && 'rounded-t-md pt-1',
+                  isLastOfFocused && 'rounded-b-md pb-1',
+                )}
+              >
+                <VirtualNodeRow node={node} />
+              </div>
             </div>
-          </div>
-        )}
+          )
+        }}
       />
       {!autoFollow && pendingCount > 0 && (
         <button
