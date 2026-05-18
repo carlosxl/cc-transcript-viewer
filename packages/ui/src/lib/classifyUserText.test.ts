@@ -53,4 +53,25 @@ describe('classifyUserText', () => {
     const r = classifyUserText(src)
     expect(r.kind).toBe('text')
   })
+
+  it('returns stdout when only local-command-stdout present', () => {
+    const src = `<local-command-stdout>**Interpret:** notification-t-core contains 59 tables</local-command-stdout>`
+    const r = classifyUserText(src)
+    expect(r.kind).toBe('stdout')
+    if (r.kind === 'stdout') expect(r.text).toMatch(/Interpret/)
+  })
+
+  it('empty local-command-stdout falls back to text', () => {
+    const src = `<local-command-stdout></local-command-stdout>`
+    const r = classifyUserText(src)
+    expect(r.kind).toBe('text')
+  })
+
+  it('prefers command shape over standalone stdout when both present', () => {
+    const src = `<command-name>/nf-db</command-name>
+<local-command-stdout>result</local-command-stdout>`
+    const r = classifyUserText(src)
+    expect(r.kind).toBe('command')
+    if (r.kind === 'command') expect(r.stdout).toBe('result')
+  })
 })

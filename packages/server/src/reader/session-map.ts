@@ -1,5 +1,5 @@
 // packages/server/src/reader/session-map.ts
-import { readFile, readdir, stat } from 'node:fs/promises'
+import { open, readFile, readdir, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join, basename, dirname } from 'node:path'
 import type { SessionMeta, AggregatedUsage, UsageSummary, ClaudeEvent, Turn, UsageBlock } from '@cc-viewer/shared'
@@ -110,7 +110,13 @@ export async function listSessions(projectsDir: string): Promise<SessionMeta[]> 
 }
 
 async function listSessionsForProject(projectDir: string, slug: string): Promise<SessionMeta[]> {
-  const projectPath = decodeProjectSlug(slug)
+  // Slug → cwd is lossy (both `/` and `.` are encoded as `-`), so a naive
+  // decode mangles real hyphens and collapses distinct projects to identical-
+  // looking strings. Recover the true cwd from any JSONL in the dir; also
+  // recover worktree info (originatingCwd + name) when present, so sessions
+  // from a worktree group under their parent project in the sidebar.
+  const resolved = await resolveProject(projectDir, slug)
+  const projectPath = resolved.projectPath
 
   const indexPath = join(projectDir, 'sessions-index.json')
   let index: SessionsIndexFile | null = null
@@ -165,6 +171,8 @@ async function listSessionsForProject(projectDir: string, slug: string): Promise
     } else {
       meta = await buildMetaFromJsonl(jsonlPath, sessionId, slug, projectPath, st.mtimeMs)
     }
+    if (resolved.worktreeOf) meta.worktreeOf = resolved.worktreeOf
+    if (resolved.worktreeName) meta.worktreeName = resolved.worktreeName
     metas.push(meta)
   }
 
@@ -406,10 +414,107 @@ async function readAgentJsonlUsage(agentJsonlPath: string): Promise<UsageSummary
 }
 
 /**
- * Slug encoding: cwd path with `/` replaced by `-` and leading `-` added.
- * Lossy / display-only; consumers use the slug as the canonical key.
+ * Resolve a project's true cwd + worktree fields. The slug encoding (`/` and
+ * `.` both → `-`) is lossy, so we recover the real cwd from any JSONL in the
+ * dir (cwd is on every "user"/"assistant" event). When a `worktree-state`
+ * event is present it tells us the original project + worktree name
+ * explicitly; otherwise we fall back to detecting the `.claude/worktrees/<n>`
+ * suffix on the cwd itself.
  */
-function decodeProjectSlug(slug: string): string {
+interface ResolvedProject {
+  projectPath: string
+  worktreeOf?: string
+  worktreeName?: string
+}
+
+async function resolveProject(projectDir: string, slug: string): Promise<ResolvedProject> {
+  const head = await readHeadInfoFromAnyJsonl(projectDir)
+  if (!head || !head.cwd) {
+    return { projectPath: naiveDecodeSlug(slug) }
+  }
+  const projectPath = head.cwd
+  if (head.worktreeOf && head.worktreeName) {
+    return { projectPath, worktreeOf: head.worktreeOf, worktreeName: head.worktreeName }
+  }
+  const m = projectPath.match(/^(.+)\/\.claude\/worktrees\/([^/]+)$/)
+  if (m) {
+    return { projectPath, worktreeOf: m[1], worktreeName: m[2] }
+  }
+  return { projectPath }
+}
+
+interface JsonlHeadInfo {
+  cwd?: string
+  worktreeOf?: string
+  worktreeName?: string
+}
+
+async function readHeadInfoFromAnyJsonl(projectDir: string): Promise<JsonlHeadInfo | null> {
+  let entries
+  try {
+    entries = await readdir(projectDir, { withFileTypes: true })
+  } catch {
+    return null
+  }
+  for (const e of entries) {
+    if (!e.name.endsWith('.jsonl')) continue
+    if (!(e.isFile() || e.isSymbolicLink())) continue
+    const info = await readHeadInfo(join(projectDir, e.name))
+    if (info?.cwd) return info
+  }
+  return null
+}
+
+async function readHeadInfo(jsonlPath: string): Promise<JsonlHeadInfo | null> {
+  // The first event in a JSONL is often `permission-mode` / `worktree-state`
+  // / `file-history-snapshot`, none of which carry `cwd` — the canonical
+  // user/assistant events follow. Read enough of the head to span this prelude.
+  const buf = Buffer.alloc(64 * 1024)
+  let handle
+  try {
+    handle = await open(jsonlPath, 'r')
+    const { bytesRead } = await handle.read(buf, 0, buf.length, 0)
+    if (bytesRead === 0) return null
+    const text = buf.slice(0, bytesRead).toString('utf8')
+    const lines = text.split('\n')
+    // The last chunk may be a partial line; drop it. (If the whole file is
+    // smaller than the buffer there's no trailing partial — but it's also
+    // harmless to skip an empty trailing element.)
+    if (bytesRead === buf.length) lines.pop()
+
+    const info: JsonlHeadInfo = {}
+    for (const line of lines) {
+      if (!line) continue
+      let evt: Record<string, unknown>
+      try {
+        evt = JSON.parse(line) as Record<string, unknown>
+      } catch {
+        continue
+      }
+      if (!info.cwd && typeof evt['cwd'] === 'string' && (evt['cwd'] as string).length > 0) {
+        info.cwd = evt['cwd'] as string
+      }
+      if (evt['type'] === 'worktree-state') {
+        const ws = evt['worktreeSession'] as Record<string, unknown> | undefined
+        if (ws) {
+          if (typeof ws['originalCwd'] === 'string') info.worktreeOf = ws['originalCwd'] as string
+          if (typeof ws['worktreeName'] === 'string') info.worktreeName = ws['worktreeName'] as string
+          // Worktree-state also carries the full worktree path — useful when
+          // no event with `cwd` falls inside the head window.
+          if (!info.cwd && typeof ws['worktreePath'] === 'string') info.cwd = ws['worktreePath'] as string
+        }
+      }
+      if (info.cwd && info.worktreeOf) break
+    }
+    return Object.keys(info).length > 0 ? info : null
+  } catch {
+    return null
+  } finally {
+    await handle?.close().catch(() => {})
+  }
+}
+
+function naiveDecodeSlug(slug: string): string {
   if (!slug.startsWith('-')) return slug
   return '/' + slug.slice(1).split('-').join('/')
 }

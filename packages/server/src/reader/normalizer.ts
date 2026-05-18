@@ -42,8 +42,9 @@ function eventToTurn(event: ClaudeEvent, index: number): Turn | null {
       return normalizeUnknownTurn(event, index)
     default:
       // Metadata events (custom-title, last-prompt, queue-operation, attachment,
-      // agent-name, ai-title, file-history-snapshot, permission-mode, progress, pr-link)
-      // are filtered out — they inform session metadata, not turns.
+      // agent-name, ai-title, file-history-snapshot, permission-mode, progress,
+      // pr-link, worktree-state) are filtered out — they inform session
+      // metadata, not turns.
       return null
   }
 }

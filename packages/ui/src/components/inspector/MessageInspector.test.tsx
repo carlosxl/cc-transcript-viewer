@@ -12,7 +12,13 @@ vi.mock('@/hooks/useActiveQuery', () => ({
   useActiveQuery: () => useActiveQueryMock(),
 }))
 
+const useActiveSubagentsMock = vi.fn()
+vi.mock('@/hooks/useActiveSubagents', () => ({
+  useActiveSubagents: () => useActiveSubagentsMock(),
+}))
+
 import { MessageInspector } from './MessageInspector'
+import { useUIStore } from '@/stores/useUIStore'
 import { useNavigationStore } from '@/stores/useNavigationStore'
 import { useSearchStore } from '@/stores/useSearchStore'
 
@@ -61,6 +67,8 @@ function makeUser(text: string, overrides: Partial<Turn> = {}): Turn {
 beforeEach(() => {
   useFocusedTurnMock.mockReset()
   useActiveQueryMock.mockReset()
+  useActiveSubagentsMock.mockReset()
+  useActiveSubagentsMock.mockReturnValue(undefined)
   useActiveQueryMock.mockReturnValue({
     turns: [],
     interactions: [],
@@ -69,6 +77,7 @@ beforeEach(() => {
     sessionId: 'session-x',
     agentId: null,
   })
+  useUIStore.setState({ activeSessionId: 'session-x' })
   useNavigationStore.setState({ selectedInteractionId: null, focusedMsgIndex: 0, drillStack: [] })
   useSearchStore.setState({ pendingJumpTarget: null })
 })
@@ -173,6 +182,89 @@ describe('UserMessageInspector', () => {
     render(<MessageInspector />)
     expect(screen.getByText('Tool error')).toBeInTheDocument()
     expect(screen.getByText('Auto-injected by Claude Code')).toBeInTheDocument()
+  })
+
+  it('classifies stdout output and labels it as a command output', () => {
+    const turn = makeUser('<local-command-stdout>**Interpret:** 59 tables</local-command-stdout>')
+    useFocusedTurnMock.mockReturnValue({ turn, nextAssistantTurn: null })
+    render(<MessageInspector />)
+    // "Command output" appears as both the kind label and the subject name —
+    // assert at least one is present.
+    expect(screen.getAllByText('Command output').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('Local — does not call the model')).toBeInTheDocument()
+    expect(screen.getByText(/Interpret/)).toBeInTheDocument()
+  })
+
+  it('renders an "Open subagent" section when a subagent links to this stdout turn', () => {
+    const turn = makeUser(
+      '<local-command-stdout>done</local-command-stdout>',
+      { uuid: 'turn-stdout' },
+    )
+    useActiveSubagentsMock.mockReturnValue([
+      {
+        agentId: 'agent-xyz',
+        agentType: 'general-purpose',
+        description: '',
+        toolUseId: '',
+        parentTurnUuid: 'turn-stdout',
+        status: 'completed',
+        turns: [],
+        childAgentIds: [],
+      },
+    ])
+    useFocusedTurnMock.mockReturnValue({ turn, nextAssistantTurn: null })
+    render(<MessageInspector />)
+    expect(screen.getByText('Subagent')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Open subagent agent-xyz/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('clicking the "Open subagent" button pushes the subagent onto the drill stack', () => {
+    const turn = makeUser(
+      '<local-command-stdout>done</local-command-stdout>',
+      { uuid: 'turn-stdout' },
+    )
+    useActiveSubagentsMock.mockReturnValue([
+      {
+        agentId: 'agent-xyz',
+        agentType: 'general-purpose',
+        description: '',
+        toolUseId: '',
+        parentTurnUuid: 'turn-stdout',
+        status: 'completed',
+        turns: [],
+        childAgentIds: [],
+      },
+    ])
+    useFocusedTurnMock.mockReturnValue({ turn, nextAssistantTurn: null })
+    render(<MessageInspector />)
+    fireEvent.click(screen.getByRole('button', { name: /Open subagent agent-xyz/i }))
+    expect(useNavigationStore.getState().drillStack).toEqual([
+      { sessionId: 'session-x', agentId: 'agent-xyz' },
+    ])
+  })
+
+  it('does not render the "Open subagent" section when no subagent links to this turn', () => {
+    const turn = makeUser(
+      '<local-command-stdout>done</local-command-stdout>',
+      { uuid: 'turn-stdout' },
+    )
+    useActiveSubagentsMock.mockReturnValue([
+      {
+        agentId: 'agent-elsewhere',
+        agentType: 'general-purpose',
+        description: '',
+        toolUseId: '',
+        parentTurnUuid: 'a-different-turn',
+        status: 'completed',
+        turns: [],
+        childAgentIds: [],
+      },
+    ])
+    useFocusedTurnMock.mockReturnValue({ turn, nextAssistantTurn: null })
+    render(<MessageInspector />)
+    expect(screen.queryByText('Subagent')).toBeNull()
   })
 
   it('renders a "Feeds into" card when a next assistant turn is available', () => {

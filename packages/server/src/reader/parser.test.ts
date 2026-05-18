@@ -30,6 +30,12 @@ describe('parseLine', () => {
     }
   })
 
+  it('recognizes worktree-state as a known metadata event (not unknown)', () => {
+    const event = parseLine('{"type":"worktree-state","sessionId":"s","worktreeSession":{"worktreeName":"x"}}')
+    expect(event).not.toBeNull()
+    expect(event!.type).toBe('worktree-state')
+  })
+
   it('preserves passthrough fields on known event types', () => {
     const event = parseLine('{"type":"user","uuid":"a","message":{"role":"user","content":"hi"},"newFieldFromFutureVersion":42}')
     expect(event).not.toBeNull()

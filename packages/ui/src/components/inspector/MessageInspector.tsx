@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import {
+  ArrowUpRight,
   ChevronLeft,
   ChevronRight,
   Hash,
@@ -11,9 +12,11 @@ import {
 } from 'lucide-react'
 import type { Turn, UsageBlock } from '@cc-viewer/shared'
 import { CACHE_MULTIPLIERS, resolveWeights } from '@cc-viewer/shared'
+import { useUIStore } from '@/stores/useUIStore'
 import { useNavigationStore } from '@/stores/useNavigationStore'
 import { useSearchStore } from '@/stores/useSearchStore'
 import { useActiveQuery } from '@/hooks/useActiveQuery'
+import { useActiveSubagents } from '@/hooks/useActiveSubagents'
 import { useFlatNodes } from '@/hooks/useFlatNodes'
 import { useFocusedTurn } from '@/hooks/useFocusedTurn'
 import { classifyUserText } from '@/lib/classifyUserText'
@@ -190,6 +193,7 @@ function UserMessageInspector({ turn, nextAssistantTurn }: { turn: Turn; nextAss
 
   const kindLabel = classified.kind === 'command' ? 'Slash command'
     : classified.kind === 'stderr' ? 'Tool error'
+    : classified.kind === 'stdout' ? 'Command output'
     : 'User message'
   const note = noteFor(classified)
 
@@ -197,7 +201,9 @@ function UserMessageInspector({ turn, nextAssistantTurn }: { turn: Turn; nextAss
     ? `${classified.name}${classified.args ? ' ' + classified.args : ''}`
     : classified.kind === 'stderr'
       ? classified.text
-      : (classified.text || '(empty)')
+      : classified.kind === 'stdout'
+        ? classified.text
+        : (classified.text || '(empty)')
 
   const chars = payloadPreview === '(empty)' ? 0 : payloadPreview.length
   const estTokens = Math.ceil(chars / 4)
@@ -211,16 +217,26 @@ function UserMessageInspector({ turn, nextAssistantTurn }: { turn: Turn; nextAss
   const tint =
     classified.kind === 'stderr' ? 'danger'
     : classified.kind === 'command' ? 'accent'
+    : classified.kind === 'stdout' ? 'accent'
     : 'user'
   const SubjectIcon =
     classified.kind === 'stderr' ? AlertTriangle
     : classified.kind === 'command' ? TerminalIcon
+    : classified.kind === 'stdout' ? TerminalIcon
     : UserIcon
-  const subjectName = classified.kind === 'command' ? classified.name : 'You'
+  const subjectName = classified.kind === 'command' ? classified.name
+    : classified.kind === 'stdout' ? 'Command output'
+    : 'You'
   const subjectSub =
     classified.kind === 'command' ? 'Local — does not call the model'
     : classified.kind === 'stderr' ? 'Auto-injected by Claude Code'
+    : classified.kind === 'stdout' ? 'Local — does not call the model'
     : 'Direct prompt'
+
+  const activeSessionId = useUIStore((s) => s.activeSessionId)
+  const pushSubagent = useNavigationStore((s) => s.pushSubagent)
+  const subagents = useActiveSubagents()
+  const linkedAgentId = subagents?.find((s) => s.parentTurnUuid === turn.uuid)?.agentId ?? null
 
   return (
     <div
@@ -263,6 +279,23 @@ function UserMessageInspector({ turn, nextAssistantTurn }: { turn: Turn; nextAss
             {payloadPreview}
           </pre>
         </Section>
+
+        {linkedAgentId && activeSessionId && (
+          <Section title="Subagent">
+            <button
+              type="button"
+              onClick={() => pushSubagent({ sessionId: activeSessionId, agentId: linkedAgentId })}
+              className="w-full inline-flex items-center justify-between gap-2 rounded-md border bg-[var(--surface-2)] hover:bg-[var(--surface-3)] px-3 py-2.5 text-left transition-colors"
+              aria-label={`Open subagent ${linkedAgentId}`}
+            >
+              <span className="flex flex-col min-w-0">
+                <span className="text-xs font-medium text-foreground">Open subagent</span>
+                <span className="font-mono text-[10.5px] text-muted-foreground truncate">{linkedAgentId}</span>
+              </span>
+              <ArrowUpRight className="w-3.5 h-3.5 text-primary flex-shrink-0" aria-hidden="true" />
+            </button>
+          </Section>
+        )}
 
         {nextAssistantTurn && (
           <Section title="Feeds into">

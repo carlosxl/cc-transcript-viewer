@@ -96,6 +96,7 @@ const FileHistorySchema = BaseEventSchema.extend({ type: z.literal('file-history
 const PermissionModeSchema = BaseEventSchema.extend({ type: z.literal('permission-mode') }).passthrough()
 const ProgressSchema = BaseEventSchema.extend({ type: z.literal('progress') }).passthrough()
 const PrLinkSchema = BaseEventSchema.extend({ type: z.literal('pr-link') }).passthrough()
+const WorktreeStateSchema = BaseEventSchema.extend({ type: z.literal('worktree-state') }).passthrough()
 
 const KnownEventsSchema = z.discriminatedUnion('type', [
   UserEventSchema,
@@ -111,6 +112,7 @@ const KnownEventsSchema = z.discriminatedUnion('type', [
   PermissionModeSchema,
   ProgressSchema,
   PrLinkSchema,
+  WorktreeStateSchema,
 ])
 
 /**

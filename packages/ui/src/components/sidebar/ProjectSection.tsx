@@ -30,20 +30,23 @@ export function ProjectSection({
   const isCollapsed = collapsedSet.has(projectSlug)
   const toggle = useUIStore((s) => s.toggleProjectSection)
 
+  const display = formatProjectPathForDisplay(projectPath)
+
   return (
     <section>
       <button
         type="button"
         onClick={() => toggle(projectSlug)}
-        className="w-full px-3 py-1.5 flex items-center gap-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary uppercase tracking-wide font-semibold text-[10.5px] text-[var(--text-3)]"
+        className="w-full px-3 py-1.5 flex items-center gap-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary font-mono text-[11px] text-[var(--text-2)]"
         aria-expanded={!isCollapsed}
+        title={projectPath}
       >
         {isCollapsed
           ? <ChevronRight className="w-[10px] h-[10px] shrink-0" aria-hidden="true" />
           : <ChevronDown className="w-[10px] h-[10px] shrink-0" aria-hidden="true" />}
         <Folder className="w-[11px] h-[11px] shrink-0" aria-hidden="true" />
-        <span className="truncate min-w-0">{projectPath}</span>
-        <span className="ml-auto font-mono">{sessions.length}</span>
+        <span className="truncate-left flex-1 min-w-0">{display}</span>
+        <span className="ml-1 shrink-0 text-[var(--text-3)]">{sessions.length}</span>
       </button>
       {!isCollapsed && (
         <div role="list" aria-label={`Sessions in ${projectPath}`}>
@@ -59,4 +62,16 @@ export function ProjectSection({
       )}
     </section>
   )
+}
+
+/**
+ * Collapse the user's home directory to `~` for a more compact label.
+ * Falls back to the raw path on browsers without the legacy `userAgent` hints
+ * — we don't *know* the OS home from a browser, so this is a heuristic: any
+ * `/Users/<name>/...` or `/home/<name>/...` prefix becomes `~/...`.
+ */
+function formatProjectPathForDisplay(path: string): string {
+  const m = path.match(/^\/(?:Users|home)\/[^/]+(\/.*)?$/)
+  if (m) return '~' + (m[1] ?? '')
+  return path
 }

@@ -47,6 +47,7 @@ export function buildFlatNodes(
       const hasUserBody =
         classified.kind === 'command' ||
         classified.kind === 'stderr' ||
+        classified.kind === 'stdout' ||
         classified.text.length > 0
       if (!hasUserBody) {
         // Tool-result-only envelope. Drop — capsule statuses + the rail

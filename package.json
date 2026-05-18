@@ -1,6 +1,6 @@
 {
   "name": "cc-viewer",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Local web-UI viewer for Claude Code conversation transcripts",
   "type": "module",
   "bin": {

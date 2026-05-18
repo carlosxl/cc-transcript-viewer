@@ -125,6 +125,13 @@ export function SessionBrowser() {
 
 interface Group { projectSlug: string; projectPath: string; sessions: SessionMeta[] }
 
+/**
+ * Group sessions by their *effective* project root. When a session ran inside
+ * a Claude Code worktree, its `worktreeOf` points at the parent project; we
+ * key the group by that path so worktree sessions fold under their parent
+ * (the `worktreeName` chip on each row preserves which worktree they came
+ * from). Falls back to `projectPath` for non-worktree sessions.
+ */
 function groupAndSort(
   sessions: SessionMeta[],
   sortOrder: 'desc' | 'asc',
@@ -132,9 +139,10 @@ function groupAndSort(
 ): Group[] {
   const map = new Map<string, Group>()
   for (const s of sessions) {
-    const g = map.get(s.projectSlug) ?? { projectSlug: s.projectSlug, projectPath: s.projectPath, sessions: [] }
+    const root = s.worktreeOf ?? s.projectPath
+    const g = map.get(root) ?? { projectSlug: root, projectPath: root, sessions: [] }
     g.sessions.push(s)
-    map.set(s.projectSlug, g)
+    map.set(root, g)
   }
   const tsCmp = sortOrder === 'desc'
     ? (a: SessionMeta, b: SessionMeta) => b.lastTimestamp.localeCompare(a.lastTimestamp)

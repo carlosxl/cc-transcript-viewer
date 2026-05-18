@@ -5,6 +5,7 @@ import { formatTurnTimestamp } from '@/lib/format'
 import { classifyUserText } from '@/lib/classifyUserText'
 import { CommandBlock } from './CommandBlock'
 import { StderrBlock } from './StderrBlock'
+import { StdoutBlock } from './StdoutBlock'
 
 /**
  * Phase 4 redesign — round avatar with user-tint, mono timestamp baseline.
@@ -29,6 +30,9 @@ export function UserTurn({ turn }: { turn: Turn }) {
   }
   if (classified.kind === 'stderr') {
     return <StderrBlock turn={turn} />
+  }
+  if (classified.kind === 'stdout') {
+    return <StdoutBlock turn={turn} />
   }
 
   const ts = formatTurnTimestamp(turn.timestamp)

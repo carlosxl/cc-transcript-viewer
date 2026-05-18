@@ -349,3 +349,20 @@ body[data-serif-titles="y"] h2 { font-family: var(--font-serif-stack); }
     box-shadow: none;
   }
 }
+
+/*
+ * Left-side ellipsis for file paths — when a long path overflows we want the
+ * distinctive trailing segments (deepest directory) visible, not the shared
+ * home/workspace prefix. `direction: rtl` + plaintext bidi keeps glyph order
+ * LTR while ellipsizing from the left.
+ */
+.truncate-left {
+  display: inline-block;
+  max-width: 100%;
+  direction: rtl;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  unicode-bidi: plaintext;
+}

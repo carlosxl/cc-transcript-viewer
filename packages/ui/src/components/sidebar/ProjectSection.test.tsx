@@ -31,8 +31,8 @@ function meta(over: Partial<SessionMeta> = {}): SessionMeta {
   }
 }
 
-describe('ProjectSection — v2 small-caps header (FR-028)', () => {
-  it('renders as a button with chevron, folder icon, project name, and session count', () => {
+describe('ProjectSection — path-readability header', () => {
+  it('renders as a button with chevron, folder icon, project path, and session count', () => {
     render(
       <ProjectSection
         projectSlug="-Users-me-proj"
@@ -44,25 +44,43 @@ describe('ProjectSection — v2 small-caps header (FR-028)', () => {
     )
     const headerBtn = screen.getByRole('button', { expanded: true })
     expect(headerBtn).toBeInTheDocument()
-    // small-caps treatment classes
-    expect(headerBtn.className).toMatch(/uppercase/)
-    expect(headerBtn.className).toMatch(/tracking-wide/)
-    expect(headerBtn.className).toMatch(/font-semibold/)
+    // Paths are file-system text — render in monospace, NOT uppercase.
+    expect(headerBtn.className).toMatch(/font-mono/)
+    expect(headerBtn.className).not.toMatch(/uppercase/)
+    // Full path stays accessible via the tooltip even when truncated.
+    expect(headerBtn).toHaveAttribute('title', '/Users/me/proj')
     // session count on the right
     expect(screen.getByText('3')).toBeInTheDocument()
   })
 
-  it('truncates the project name with ellipsis on a single line', () => {
+  it('collapses $HOME to ~ in the visible label but keeps the full path in the tooltip', () => {
     render(
       <ProjectSection
-        projectSlug="-very-long-project-slug"
-        projectPath="/Users/me/a-very-very-very-long-project-path-that-should-truncate"
+        projectSlug="-Users-me-proj"
+        projectPath="/Users/me/workspace/some-project"
         sessions={[meta()]}
         activeSessionId={null}
         onSelect={() => {}}
       />,
     )
-    const nameSpan = screen.getByText(/a-very-very-very-long-project-path/i)
-    expect(nameSpan.className).toMatch(/truncate/)
+    expect(screen.getByText('~/workspace/some-project')).toBeInTheDocument()
+    expect(screen.getByRole('button', { expanded: true })).toHaveAttribute(
+      'title',
+      '/Users/me/workspace/some-project',
+    )
+  })
+
+  it('left-truncates long paths so the trailing (distinctive) segments stay visible', () => {
+    render(
+      <ProjectSection
+        projectSlug="-very-long-project-slug"
+        projectPath="/Users/me/workspace/pltf-nf-agent-workspace/.claude/worktrees/cuddly-conjuring-storm"
+        sessions={[meta()]}
+        activeSessionId={null}
+        onSelect={() => {}}
+      />,
+    )
+    const nameSpan = screen.getByText(/cuddly-conjuring-storm/i)
+    expect(nameSpan.className).toMatch(/truncate-left/)
   })
 })

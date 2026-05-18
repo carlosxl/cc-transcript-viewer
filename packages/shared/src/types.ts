@@ -85,6 +85,14 @@ export interface SubagentRef {
   description: string;
   /** The parent tool_use block id that spawned this subagent. */
   toolUseId: string;
+  /**
+   * The UUID of the spawner's user turn whose `<local-command-stdout>` block
+   * carries this subagent's final answer. Set by the linker's Source 3
+   * (timestamp attribution) for skill-style slash commands that spawn an
+   * agent without going through the Task/Agent tool. Empty/undefined when
+   * Source 1 or 2 resolved the parent via `toolUseId`.
+   */
+  parentTurnUuid?: string;
   status: 'completed' | 'killed' | 'failed' | 'running';
   turns: Turn[];
   /** agentIds this subagent in turn spawned. */
@@ -131,6 +139,15 @@ export interface SessionMeta {
    * event carried it. Added by amended D-34 (plan 02-02) to support VIEW-09.
    */
   gitBranch?: string;
+  /**
+   * When the session ran inside a Claude Code worktree (cwd under
+   * `<root>/.claude/worktrees/<name>`), the cwd of the originating project.
+   * The sidebar groups by `worktreeOf ?? projectPath` so worktree sessions
+   * fold under their parent.
+   */
+  worktreeOf?: string;
+  /** Human-readable worktree name (the directory under `.claude/worktrees/`). */
+  worktreeName?: string;
 }
 
 /**
@@ -151,6 +168,10 @@ export interface Session {
   turns: Turn[];
   subagents: SubagentRef[];
   parseWarnings: number;
+  /** See SessionMeta.worktreeOf. */
+  worktreeOf?: string;
+  /** See SessionMeta.worktreeName. */
+  worktreeName?: string;
 }
 
 // ────────────────────────────────────────────────────────────────────────────

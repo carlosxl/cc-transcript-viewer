@@ -174,4 +174,95 @@ describe('buildSubagentLinkages', () => {
     expect(linkages.agentToToolUse.size).toBe(0)
     expect(linkages.toolUseToAgent.size).toBe(0)
   })
+
+  function userStdoutTurn(uuid: string, timestamp: string, body = 'result'): ClaudeEvent {
+    return {
+      type: 'user',
+      uuid,
+      timestamp,
+      message: {
+        role: 'user',
+        content: `<local-command-stdout>${body}</local-command-stdout>`,
+      },
+    } as unknown as ClaudeEvent
+  }
+  function assistantAt(uuid: string, timestamp: string): ClaudeEvent {
+    return {
+      type: 'assistant',
+      uuid,
+      timestamp,
+      message: { role: 'assistant', content: [{ type: 'text', text: 'done' }] },
+    } as unknown as ClaudeEvent
+  }
+
+  it('Source 3 attributes an orphan subagent to a stdout turn by timestamp', () => {
+    const parentEvents: ClaudeEvent[] = [
+      userStdoutTurn('turn-stdout', '2026-05-15T02:04:42.717Z'),
+    ]
+    const subagentEvents: ClaudeEvent[] = [
+      assistantAt('a1', '2026-05-15T02:04:21.272Z'),
+      assistantAt('a2', '2026-05-15T02:04:42.709Z'), // 8ms before stdout
+    ]
+    const linkages = buildSubagentLinkages(
+      parentEvents,
+      new Map([['agentSkill', subagentEvents]]),
+    )
+    expect(linkages.agentToParentTurnUuid.get('agentSkill')).toBe('turn-stdout')
+    expect(linkages.childrenByAgent.get('')).toContain('agentSkill')
+    // Source 3 does NOT populate toolUseId — that field stays empty.
+    expect(linkages.agentToToolUse.get('agentSkill')).toBeUndefined()
+  })
+
+  it('Source 3 skips subagents whose timestamp gap exceeds the tolerance', () => {
+    const parentEvents: ClaudeEvent[] = [
+      userStdoutTurn('turn-stdout', '2026-05-15T02:04:42.717Z'),
+    ]
+    const subagentEvents: ClaudeEvent[] = [
+      assistantAt('a1', '2026-05-15T02:04:00.000Z'), // 42s before → exceeds 5s tolerance
+    ]
+    const linkages = buildSubagentLinkages(
+      parentEvents,
+      new Map([['agentFar', subagentEvents]]),
+    )
+    expect(linkages.agentToParentTurnUuid.get('agentFar')).toBeUndefined()
+  })
+
+  it('Source 3 yields to Source 1 when the subagent already has a toolUseId', () => {
+    const parentEvents: ClaudeEvent[] = [
+      assistant('1', [{ type: 'tool_use', id: 'toolu_T', name: 'Task', input: {} }]),
+      queueOp('enqueue', 'agentDual', 'toolu_T'),
+      userStdoutTurn('turn-stdout', '2026-05-15T02:04:42.717Z'),
+    ]
+    const subagentEvents: ClaudeEvent[] = [
+      assistantAt('a1', '2026-05-15T02:04:42.710Z'),
+    ]
+    const linkages = buildSubagentLinkages(
+      parentEvents,
+      new Map([['agentDual', subagentEvents]]),
+    )
+    expect(linkages.agentToToolUse.get('agentDual')).toBe('toolu_T')
+    expect(linkages.agentToParentTurnUuid.get('agentDual')).toBeUndefined()
+  })
+
+  it('Source 3 attributes each orphan subagent to its own stdout turn', () => {
+    const parentEvents: ClaudeEvent[] = [
+      userStdoutTurn('turn-1', '2026-05-15T02:04:42.717Z'),
+      userStdoutTurn('turn-2', '2026-05-15T02:08:20.475Z'),
+    ]
+    const subagentA: ClaudeEvent[] = [
+      assistantAt('a1', '2026-05-15T02:04:42.700Z'),
+    ]
+    const subagentB: ClaudeEvent[] = [
+      assistantAt('b1', '2026-05-15T02:08:20.440Z'),
+    ]
+    const linkages = buildSubagentLinkages(
+      parentEvents,
+      new Map([
+        ['agentA', subagentA],
+        ['agentB', subagentB],
+      ]),
+    )
+    expect(linkages.agentToParentTurnUuid.get('agentA')).toBe('turn-1')
+    expect(linkages.agentToParentTurnUuid.get('agentB')).toBe('turn-2')
+  })
 })

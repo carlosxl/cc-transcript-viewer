@@ -42,7 +42,21 @@ export interface SubagentLinkages {
   agentStatus: Map<string, SubagentRef['status']>
   /** spawnerAgentId ('' = main) → list of child agentIds spawned by that source. */
   childrenByAgent: Map<string, string[]>
+  /**
+   * agentId → spawner's user-turn uuid whose `<local-command-stdout>` block
+   * carries the subagent's final answer. Populated only by Source 3 (skill
+   * slash commands that bypass the Task/Agent tool, so they have no
+   * `toolUseId`). Empty for subagents resolved via Source 1 or 2.
+   */
+  agentToParentTurnUuid: Map<string, string>
 }
+
+/** Max wall-clock gap between a subagent's last event and the spawner's stdout
+ * turn for Source 3 to claim attribution. Observed gaps in real sessions are
+ * < 50 ms; 5 s is a comfortable safety margin without risk of mis-attributing
+ * across separately-issued slash commands (each one is at least seconds apart
+ * since the user has to type the next one). */
+const SOURCE_3_TS_TOLERANCE_MS = 5_000
 
 /**
  * Extract <task-id> + <tool-use-id> from a queue-operation `content` string.
@@ -88,6 +102,7 @@ export function buildSubagentLinkages(
   const toolUseToAgent = new Map<string, string>()
   const agentStatus = new Map<string, SubagentRef['status']>()
   const childrenByAgent = new Map<string, string[]>()
+  const agentToParentTurnUuid = new Map<string, string>()
 
   // Default status for every known subagent. Overridden below if a more
   // specific signal is found (failed / killed). 'completed' matches the legacy
@@ -184,9 +199,111 @@ export function buildSubagentLinkages(
         }
       }
     }
+
+    // ── Source 3: skill slash commands. Match unlinked subagents to a
+    // `<local-command-stdout>` user turn in this spawner by timestamp.
+    // Custom slash commands (e.g. `/nf-db`) spawn an agent without a Task
+    // tool_use, so Sources 1 & 2 yield nothing. The subagent's last event
+    // timestamp aligns within milliseconds with the user-turn carrying its
+    // stdout — that's the attribution we use.
+    const stdoutTurns = collectStdoutTurns(events)
+    if (stdoutTurns.length > 0) {
+      for (const [childAgentId, childEvents] of subagentEventsByAgentId) {
+        if (agentToToolUse.has(childAgentId)) continue
+        if (agentToParentTurnUuid.has(childAgentId)) continue
+        const lastTs = findLastTimestampMs(childEvents)
+        if (lastTs === null) continue
+        const match = pickClosestStdoutTurn(stdoutTurns, lastTs, SOURCE_3_TS_TOLERANCE_MS)
+        if (!match) continue
+        // One subagent per stdout turn — mark the turn claimed.
+        match.claimed = true
+        agentToParentTurnUuid.set(childAgentId, match.uuid)
+        const kids = childrenByAgent.get(spawnerAgentId) ?? []
+        if (!kids.includes(childAgentId)) {
+          kids.push(childAgentId)
+          childrenByAgent.set(spawnerAgentId, kids)
+        }
+      }
+    }
   }
 
-  return { agentToToolUse, toolUseToAgent, agentStatus, childrenByAgent }
+  return { agentToToolUse, toolUseToAgent, agentStatus, childrenByAgent, agentToParentTurnUuid }
+}
+
+interface StdoutTurnRef {
+  uuid: string
+  tsMs: number
+  claimed: boolean
+}
+
+/** Collect user events whose body contains a `<local-command-stdout>` tag
+ * (standalone or wrapped). These are the candidate hosts for Source 3
+ * attribution. Events without a uuid or timestamp are skipped. */
+function collectStdoutTurns(events: ClaudeEvent[]): StdoutTurnRef[] {
+  const out: StdoutTurnRef[] = []
+  for (const e of events) {
+    if (e.type !== 'user') continue
+    const uuid = e.uuid
+    const timestamp = e.timestamp
+    if (typeof uuid !== 'string' || typeof timestamp !== 'string') continue
+    const tsMs = Date.parse(timestamp)
+    if (Number.isNaN(tsMs)) continue
+    const text = userEventText(e.message.content)
+    if (!text.includes('<local-command-stdout>')) continue
+    out.push({ uuid, tsMs, claimed: false })
+  }
+  return out
+}
+
+/** Concatenate string + text-block content of a user message into a single
+ * string for substring matching. Mirrors the loose matching in
+ * `classifyUserText` so the linker and the UI classifier agree. */
+function userEventText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  const parts: string[] = []
+  for (const block of content) {
+    if (!isObject(block)) continue
+    const b = block as Record<string, unknown>
+    if (b['type'] === 'text' && typeof b['text'] === 'string') parts.push(b['text'])
+  }
+  return parts.join('\n')
+}
+
+/** Find the largest timestamp across an event stream (parsed to ms). The
+ * linker uses this rather than file order because some event types (e.g.
+ * attachments) may carry slightly earlier timestamps even when written last. */
+function findLastTimestampMs(events: ClaudeEvent[]): number | null {
+  let max: number | null = null
+  for (const e of events) {
+    if (!('timestamp' in e)) continue
+    const ts = (e as { timestamp?: unknown }).timestamp
+    if (typeof ts !== 'string') continue
+    const ms = Date.parse(ts)
+    if (Number.isNaN(ms)) continue
+    if (max === null || ms > max) max = ms
+  }
+  return max
+}
+
+/** Pick the unclaimed stdout turn whose timestamp is closest to `targetMs`
+ * within `toleranceMs`. Returns null when no candidate is within tolerance. */
+function pickClosestStdoutTurn(
+  turns: StdoutTurnRef[],
+  targetMs: number,
+  toleranceMs: number,
+): StdoutTurnRef | null {
+  let best: StdoutTurnRef | null = null
+  let bestGap = toleranceMs
+  for (const t of turns) {
+    if (t.claimed) continue
+    const gap = Math.abs(t.tsMs - targetMs)
+    if (gap <= bestGap) {
+      best = t
+      bestGap = gap
+    }
+  }
+  return best
 }
 
 /**
@@ -205,6 +322,8 @@ export function applyLinkages(
     sa.toolUseId = linkages.agentToToolUse.get(sa.agentId) ?? ''
     sa.status = linkages.agentStatus.get(sa.agentId) ?? 'completed'
     sa.childAgentIds = linkages.childrenByAgent.get(sa.agentId) ?? []
+    const parentTurnUuid = linkages.agentToParentTurnUuid.get(sa.agentId)
+    if (parentTurnUuid) sa.parentTurnUuid = parentTurnUuid
   }
 }
 

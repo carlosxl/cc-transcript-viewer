@@ -1,4 +1,4 @@
-import { Star } from 'lucide-react'
+import { GitBranch, Star } from 'lucide-react'
 import type { SessionMeta } from '@cc-viewer/shared'
 import { compactNumber, relativeTime } from '@/lib/format'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -75,6 +75,18 @@ export function SessionRow({ session, active, onSelect }: SessionRowProps) {
             <TooltipContent side="bottom">{breakdown}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        {session.worktreeName && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span
+              className="inline-flex items-center gap-0.5 min-w-0 max-w-[50%] text-[var(--text-3)]"
+              title={`Worktree: ${session.worktreeName}`}
+            >
+              <GitBranch className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">{session.worktreeName}</span>
+            </span>
+          </>
+        )}
       </div>
 
       {/* Live dot — only when isLive */}

@@ -36,7 +36,7 @@ export async function loadSessionFromDisk(jsonlPath: string): Promise<SessionLoa
   // Derive session metadata from events.
   const sessionId = basename(jsonlPath, extname(jsonlPath))
   const projectSlug = basename(dirname(jsonlPath))
-  const projectPath = decodeProjectSlug(projectSlug)
+  const projectPath = findCwd(events) ?? naiveDecodeSlug(projectSlug)
 
   const title = pickTitle(events, sessionId)
   const firstTimestamp = findTimestamp(events, 'forward') ?? ''
@@ -91,6 +91,7 @@ export async function loadSessionFromDisk(jsonlPath: string): Promise<SessionLoa
 
   const totalUsage = aggregateUsage(mainTurns, subagents)
   const messageCount = mainTurns.filter(t => t.role === 'user' || t.role === 'assistant').length
+  const worktree = findWorktreeInfo(events, projectPath)
 
   const session: Session = {
     sessionId,
@@ -106,6 +107,8 @@ export async function loadSessionFromDisk(jsonlPath: string): Promise<SessionLoa
     turns: mainTurns,
     subagents,
     parseWarnings: mainWarnings + subagentWarnings,
+    ...(worktree.worktreeOf ? { worktreeOf: worktree.worktreeOf } : {}),
+    ...(worktree.worktreeName ? { worktreeName: worktree.worktreeName } : {}),
   }
 
   return { session, mtimeMs }
@@ -172,13 +175,47 @@ function findTimestamp(
 }
 
 /**
- * Slug encoding: cwd path with `/` replaced by `-` and leading `-` added.
- * (See ARCHITECTURE.md §"File System Layout".)
+ * The slug encoding (`/` AND `.` both → `-`) is lossy. Prefer the real `cwd`
+ * recorded on every JSONL event over reverse-engineering the slug.
  */
-function decodeProjectSlug(slug: string): string {
-  // The encoding is lossy (cannot distinguish "-" in paths from "/"), so we
-  // reconstruct best-effort: leading "-" becomes "/", remaining "-" become "/".
-  // Consumers use the slug as the stable key; the decoded path is display-only.
+function findCwd(events: ClaudeEvent[]): string | null {
+  for (const e of events) {
+    const v = (e as unknown as { cwd?: unknown }).cwd
+    if (typeof v === 'string' && v.length > 0) return v
+    if (e.type === 'unknown') {
+      const raw = (e as { raw?: Record<string, unknown> }).raw
+      const c = raw?.['cwd']
+      if (typeof c === 'string' && c.length > 0) return c
+    }
+  }
+  return null
+}
+
+/**
+ * Detect worktree status from a `worktree-state` event, or — as a fallback —
+ * from the cwd matching `<root>/.claude/worktrees/<name>`.
+ */
+function findWorktreeInfo(
+  events: ClaudeEvent[],
+  projectPath: string,
+): { worktreeOf?: string; worktreeName?: string } {
+  for (const e of events) {
+    if (e.type !== 'unknown') continue
+    const raw = (e as { raw?: Record<string, unknown> }).raw
+    if (raw?.['type'] !== 'worktree-state') continue
+    const ws = raw['worktreeSession'] as Record<string, unknown> | undefined
+    if (!ws) continue
+    const out: { worktreeOf?: string; worktreeName?: string } = {}
+    if (typeof ws['originalCwd'] === 'string') out.worktreeOf = ws['originalCwd'] as string
+    if (typeof ws['worktreeName'] === 'string') out.worktreeName = ws['worktreeName'] as string
+    if (out.worktreeOf && out.worktreeName) return out
+  }
+  const m = projectPath.match(/^(.+)\/\.claude\/worktrees\/([^/]+)$/)
+  if (m) return { worktreeOf: m[1], worktreeName: m[2] }
+  return {}
+}
+
+function naiveDecodeSlug(slug: string): string {
   if (!slug.startsWith('-')) return slug
   return '/' + slug.slice(1).split('-').join('/')
 }

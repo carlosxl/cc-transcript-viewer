@@ -123,6 +123,36 @@ describe('SessionBrowser', () => {
     expect(titles[1]).toBe('Newer')
   })
 
+  it('folds worktree sessions under their parent project', async () => {
+    vi.spyOn(api, 'fetchSessions').mockResolvedValue({
+      sessions: [
+        meta({
+          sessionId: 'main',
+          projectSlug: '-Users-me-proj',
+          projectPath: '/Users/me/proj',
+          title: 'Main repo session',
+        }),
+        meta({
+          sessionId: 'wt-1',
+          projectSlug: '-Users-me-proj--claude-worktrees-feat-x',
+          projectPath: '/Users/me/proj/.claude/worktrees/feat-x',
+          worktreeOf: '/Users/me/proj',
+          worktreeName: 'feat-x',
+          title: 'Worktree session',
+        }),
+      ],
+    })
+    withQuery(<SessionBrowser />)
+    await waitFor(() => expect(screen.getByText('Main repo session')).toBeInTheDocument())
+    // Both sessions appear under the single parent-project section.
+    expect(screen.getByText('Worktree session')).toBeInTheDocument()
+    // Parent project path is shown (with $HOME collapsed); worktree path is NOT.
+    expect(screen.getByText('~/proj')).toBeInTheDocument()
+    expect(screen.queryByText('~/proj/.claude/worktrees/feat-x')).not.toBeInTheDocument()
+    // Worktree-name chip surfaces on the worktree session row.
+    expect(screen.getByText('feat-x')).toBeInTheDocument()
+  })
+
   it('clicking a session row sets activeSessionId in useUIStore', async () => {
     vi.spyOn(api, 'fetchSessions').mockResolvedValue({ sessions: [meta({ sessionId: 'open-me' })] })
     withQuery(<SessionBrowser />)
