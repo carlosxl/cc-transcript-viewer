@@ -141,6 +141,22 @@ To capture summaries in **future** sessions, add to `~/.claude/settings.json`:
 Or launch with `claude --thinking-display summarized`. Past sessions stay
 empty — the text was never written to disk.
 
+### `prebuild-install` deprecation warning during `npx` install
+
+You may see this during the first `npx` run:
+
+```
+npm warn deprecated prebuild-install@7.1.3: No longer maintained. …
+```
+
+It comes from `better-sqlite3` (our SQLite + FTS5 binding) — every current
+version of which still pulls `prebuild-install` to fetch its native binary.
+The warning is harmless: the install succeeds, the binary works. Tracking
+upstream: [WiseLibs/better-sqlite3#1463](https://github.com/WiseLibs/better-sqlite3/issues/1463)
+(see also PRs [#1446](https://github.com/WiseLibs/better-sqlite3/pull/1446)
+and [#655](https://github.com/WiseLibs/better-sqlite3/issues/655) which
+propose migrating to `node-gyp` / `prebuildify`).
+
 ## License
 
 MIT
