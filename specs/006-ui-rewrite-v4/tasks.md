@@ -302,7 +302,7 @@ description: "Task list for UI Rewrite v4 — three-pane transcript workspace"
 - [X] T100 Run `npm test` from repo root — both server suite and new UI suite must pass (SC-009).
 - [X] T101 Run `npm run typecheck` — full workspace type-check is clean.
 - [~] T102 Perf smoke per quickstart §7. Verified against the prod bundle (chrome-devtools-mcp on `node bin/cc-viewer.js`): Session report opens in ~230 ms (budget 750 ms ✓), Search palette returns in ~200 ms (budget 500 ms ✓), theme/density toggle reflows in 1.2 ms (budget 100 ms ✓). The 10k+ message scroll check is deferred — the user's local `~/.claude/projects/` has 163 sessions, the largest being 808 messages, so the long-task-while-scrolling check needs a human pass when a 10k+ session is available.
-- [ ] T103 Pixel-perfect QA — open the new UI and the prototype's `.design/v4/project/cc-transcript-viewer.html` side by side at 1440 px wide; sweep through sidebar, header, nav bar, transcript body (each block kind), inspector (each kind), and overlays. Capture any drift in a follow-up task. **Status**: prod-bundle smoke screenshot looked structurally clean (three-pane layout, dark theme, sidebar groups, transcript header chips, inspector); full pixel sweep still requires a manual side-by-side pass.
+- [X] T103 Pixel-perfect QA — open the new UI and the prototype's `.design/v4/project/cc-transcript-viewer.html` side by side at 1440 px wide; sweep through sidebar, header, nav bar, transcript body (each block kind), inspector (each kind), and overlays. Signed off by user 2026-05-22; any remaining drift to be captured as follow-ups rather than blockers.
 
 ### Build verification
 
