@@ -1,7 +1,11 @@
 import '@testing-library/jest-dom/vitest'
-import { vi } from 'vitest'
+import { afterEach, vi } from 'vitest'
+import { cleanup } from '@testing-library/react'
 
-// matchMedia mock — UI uses prefers-color-scheme on init (D-04)
+afterEach(() => {
+  cleanup()
+})
+
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: (query: string) => ({
@@ -16,17 +20,16 @@ Object.defineProperty(window, 'matchMedia', {
   }),
 })
 
-// navigator.clipboard mock — VIEW-07 copy button tests rely on this
-Object.defineProperty(navigator, 'clipboard', {
-  writable: true,
-  configurable: true,
-  value: { writeText: vi.fn(async () => undefined) },
-})
-
-// ResizeObserver mock — react-virtuoso needs it; jsdom doesn't provide it
 class MockResizeObserver {
   observe() {}
   unobserve() {}
   disconnect() {}
 }
-;(globalThis as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
+;(globalThis as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver =
+  MockResizeObserver as unknown as typeof ResizeObserver
+
+// jsdom doesn't implement scrollIntoView; SearchPalette's active-row scroll
+// effect calls it on each keypress.
+if (typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = function () {}
+}

@@ -1,101 +1,42 @@
-import { GitBranch, Star } from 'lucide-react'
-import type { SessionMeta } from '@cc-viewer/shared'
-import { compactNumber, relativeTime } from '@/lib/format'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { useUIStore } from '@/stores/useUIStore'
-import { cn } from '@/lib/utils'
+import type { SessionMeta } from '@/lib/types'
+import { fmtCost, fmtRelativeTime } from '@/lib/format'
+import { costFromUsage, tokensOf } from '@/lib/cost'
+import { CostTooltip } from './CostTooltip'
 
 interface SessionRowProps {
   session: SessionMeta
   active: boolean
-  onSelect: (sessionId: string) => void
+  onClick: () => void
 }
 
-/**
- * Compact v2-aligned sidebar row (FR-029..FR-034).
- *
- * Height ≈32–36px, indented under the project header, no card border.
- * Active: accent-soft fill (`bg-accent`) — no left border or other indent.
- * Pinned: filled accent Star prefixes the title; non-pinned rows reserve
- *   no space for the star. The star is display-only here — toggling pin
- *   state lives on `TranscriptHeader`'s StarButton.
- * Live: pulsing green dot at row's top-right.
- * Token-count tooltip preserves the four-way breakdown (FR-033).
- */
-export function SessionRow({ session, active, onSelect }: SessionRowProps) {
-  const u = session.totalUsage
-  const total = u.inputTokens + u.outputTokens + u.cacheCreationTokens + u.cacheReadTokens
-  const breakdown = `In ${compactNumber(u.inputTokens)} / Out ${compactNumber(u.outputTokens)} / C+ ${compactNumber(u.cacheCreationTokens)} / C- ${compactNumber(u.cacheReadTokens)}`
-  const pinned = useUIStore((s) => s.pinnedSessions.has(session.sessionId))
-
+export function SessionRow({ session, active, onClick }: SessionRowProps) {
+  const cost = costFromUsage(session.totalUsage)
+  const tokens = tokensOf(session.totalUsage)
   return (
     <div
-      role="button"
-      tabIndex={0}
-      aria-label={`Open session: ${session.title}`}
-      aria-pressed={active}
-      onClick={() => onSelect(session.sessionId)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onSelect(session.sessionId)
-        }
-      }}
-      className={cn(
-        'relative pl-7 pr-3 py-1 cursor-pointer select-none',
-        'hover:bg-accent',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
-        active && 'bg-accent',
-      )}
+      className="sb-row relative cursor-pointer border-l-2 border-transparent py-1.5 pr-3 pl-[18px] transition-colors hover:bg-[var(--surface-2)] data-[active=true]:border-[var(--accent)] data-[active=true]:bg-[var(--accent-soft)] data-[active=true]:hover:bg-[var(--accent-soft)]"
+      data-active={active || undefined}
+      onClick={onClick}
     >
-      {/* Title (line 1) — 12.5px, single line, ellipsized; star prefix only when pinned */}
-      <div className="text-[12.5px] font-medium truncate text-foreground leading-4 flex items-center gap-1.5">
-        {pinned && (
-          <Star
-            className="w-3 h-3 shrink-0 text-primary"
-            aria-hidden="true"
-            fill="currentColor"
-            strokeWidth={0}
+      <div className="sb-row-title flex items-center gap-1.5 truncate text-[12.5px] font-medium text-[var(--text-0)]">
+        <span className="min-w-0 flex-1 truncate">{session.title}</span>
+        {session.isLive && (
+          <span
+            className="sb-live ml-auto h-[6px] w-[6px] flex-shrink-0 rounded-full"
+            style={{ background: 'var(--green)', animation: 'live-pulse 1.6s ease-out infinite' }}
+            aria-label="live"
           />
         )}
-        <span className="truncate">{session.title}</span>
       </div>
-
-      {/* Meta (line 2) — mono, 10.5px, muted */}
-      <div className="font-mono text-[10.5px] text-muted-foreground leading-4 mt-0 flex items-center gap-1.5">
-        <span>{relativeTime(session.lastTimestamp)}</span>
-        <span aria-hidden="true">·</span>
-        <span>{session.messageCount} msg</span>
-        <span aria-hidden="true">·</span>
-        <TooltipProvider delayDuration={300}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="font-mono">{compactNumber(total)}</span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{breakdown}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        {session.worktreeName && (
-          <>
-            <span aria-hidden="true">·</span>
-            <span
-              className="inline-flex items-center gap-0.5 min-w-0 max-w-[50%] text-[var(--text-3)]"
-              title={`Worktree: ${session.worktreeName}`}
-            >
-              <GitBranch className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">{session.worktreeName}</span>
-            </span>
-          </>
-        )}
+      <div className="sb-row-meta mt-0.5 flex items-center font-mono text-[10.5px] text-[var(--text-3)]">
+        <span>{fmtRelativeTime(session.lastTimestamp)}</span>
+        <span className="mx-[5px] text-[var(--text-disabled)]">·</span>
+        <span>{session.messageCount} msgs</span>
+        <span className="mx-[5px] text-[var(--text-disabled)]">·</span>
+        <CostTooltip tokens={tokens}>
+          <span className="cost text-[var(--text-2)]">{fmtCost(cost)}</span>
+        </CostTooltip>
       </div>
-
-      {/* Live dot — only when isLive */}
-      {session.isLive === true && (
-        <span
-          aria-hidden="true"
-          className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"
-        />
-      )}
     </div>
   )
 }
