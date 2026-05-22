@@ -205,7 +205,7 @@ The Technical Context above has **no `NEEDS CLARIFICATION` markers**. The remain
 5. **Live tail mechanics**. Confirm the SSE event names emitted by `/api/live/:sessionId` and how the UI integrates pending turns with `useSessionView` (matching the prototype's `livePending` chip + `extraTurns` flat-array splice).
 6. **Subagent drill**. Confirm `GET /api/sessions/:id/subagents/:agentId` returns a full subagent transcript that can be pushed onto the session stack with the same `Session` shape (so all transcript components are reusable).
 7. **Search palette and progress**. Confirm `/api/search`, `/api/search/status`, and `/api/search/progress` cover everything the prototype shows (grouping by project, kind badge, snippet highlighting, indexing status with percentage).
-8. **Stderr envelope detection**. Decide where the "stderr envelope" classification lives so the `n`/`N` shortcut can filter it. The current frontend has `lib/classifyUserText.ts` (being deleted); the rewrite re-introduces a minimal classifier in `lib/markdown.tsx`'s neighborhood (preferred) or re-implements it in `useFlatPrompts.ts`.
+8. **Stderr envelope detection**. Decide where the "stderr envelope" classification lives so the `n`/`N` shortcut can filter it. The current frontend has `lib/classifyUserText.ts` (being deleted); per research R-08 the rewrite re-introduces a minimal classifier at `packages/ui/src/lib/classifyUserText.ts` exporting `isStderrEnvelope(text: string): boolean` and `useFlatPrompts` filters by it.
 9. **Theme/density persistence**. Per Assumptions in the spec, session-scoped only in v1 — Zustand store without localStorage. Recorded so we don't accidentally add persistence.
 10. **Pixel-perfect strategy**. Document the approach: port `.design/v4/project/app.css` design tokens (`--text-0/1/2/3`, `--accent`, etc.) into `index.css` as Tailwind v4 `@theme` layers, then use shadcn / Tailwind utilities for everything else. The `data-theme` / `data-density` attributes on `<html>` switch the active token set.
 
@@ -275,9 +275,9 @@ Developer-facing run sheet for the rewrite branch:
 2. **Terminal A — server in dev:** `npm run dev:server` (from repo root). The CLI flag set is unchanged from current behavior.
 3. **Terminal B — UI in dev:** `npm run dev:ui` (Vite dev server on :5173, proxying `/api/*` and `/api/live/*` to the Hono server's port).
 4. Open `http://localhost:5173/`.
-5. **Tests:** `npm run test --workspaces` for the full suite, or `npm run test -w @cc-viewer/ui` for the UI-only re-build tests.
-6. **Production build:** `npm run build --workspaces` → `npm run copy:ui` lifts `packages/ui/dist/` into `packages/server/public/`. Then `npm run start` boots the server from the published artifact path.
-7. **CLI smoke:** `node bin/cc-transcript-viewer.js` (or `npx -y .` from repo root) opens the SPA at `http://127.0.0.1:<auto-port>/`. End-to-end smoke must include opening a 10k-message session and verifying the keyboard shortcuts in FR-080.
+5. **Tests:** `npm test` from the repo root runs the server + UI suites (the shared package has no test runner); or `npm run test -w @cc-viewer/ui` for the UI-only re-build tests.
+6. **Production build:** `npm run build` (build:ui → copy:ui → build:server → inline:shared) lifts `packages/ui/dist/` into `packages/server/public/` and prepares the server bundle.
+7. **CLI smoke:** `node bin/cc-viewer.js` (or `npx -y .` from repo root) opens the SPA at `http://127.0.0.1:<auto-port>/`. End-to-end smoke must include opening a 10k-message session and verifying the keyboard shortcuts in FR-080.
 
 ### 4. Agent context update
 
@@ -306,3 +306,25 @@ No constitutional violations. Table intentionally empty.
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|--------------------------------------|
 | _(none)_ | — | — |
+
+## Smoke-Test Milestones
+
+Implementation is paced around seven hand-off points where the user runs a short manual smoke test before the next phase begins. Each milestone maps to a "🛑 MILESTONE" marker task in `tasks.md` and to a defined slice of behaviour the user can exercise from a real `~/.claude/projects/` directory. Implementation MUST stop at each milestone, report what shipped, and wait for the user to confirm before resuming. The smoke tests are intentionally lightweight — they are not the full acceptance scenarios from the spec; they are the minimum signal that the slice works end-to-end on real data.
+
+| # | Pause after | What just shipped | What the user smoke-tests | Expected duration |
+|---|-------------|-------------------|---------------------------|-------------------|
+| **M1** | T004 (end of Phase 1 Setup) | Old UI deleted; minimal `main.tsx` + `index.css` with design tokens in place. | `npm run build:ui` exits 0. `npm test` (server + UI) is green. Dev server boots, loads the placeholder div, and DevTools shows `<html data-theme="dark">` with the design-token CSS variables resolved. | ~2 minutes |
+| **M2** | T032 (end of Phase 2 Foundational) | App shell, providers, stores, hooks, and keyboard wiring exist; no panes yet. | App boots to an empty three-region grid. Pressing `t` toggles `data-theme` on `<html>` between dark and light. `npm --workspace @cc-viewer/ui run typecheck` is clean. | ~2 minutes |
+| **M3** | T058 (end of Phase 3 — User Story 1) | Read flow: sidebar lists sessions, transcript renders, inspector reflects focus. | Pick a non-empty session in the sidebar. Verify three panes render, scroll a 10k+ message session bottom→top without visible hitch, click a tool capsule → inspector switches to Tool view, toggle inspector via header button. | ~5 minutes |
+| **M4** | T064 (end of Phase 4 — User Story 2) | Subagent drill + return. This is the P1 MVP. | Find a session with a subagent tool call. Click the inline "Open subagent transcript" CTA → header shows "Back to [parent]". Click back → parent transcript restored at the previously focused node and scroll position. | ~3 minutes |
+| **M5** | T079 (end of Phase 7 — User Story 5) | All P2 stories: keyboard navigation, live tail, search palette. | Exercise each shortcut in FR-080 once. Trigger a new turn on an active session — verify "Live" chip and toast surface and `Shift+G` follows. Press `⌘K`, type a query that hits multiple sessions, hit `↑`/`↓`/`Enter` to navigate and open. | ~7 minutes |
+| **M6** | T087 (end of Phase 10 — User Story 8) | All P3 stories: session report, inspector subagent CTA, theme/density polish. | Press `r` on a multi-turn session → all report sections populate (no NaN). Focus a subagent-spawning tool in the inspector → drill CTA visible. Toggle theme + density from header — all three panes reflow cleanly. | ~4 minutes |
+| **M7** | T105 (end of Phase 11 build verification) | Production build + CLI smoke against the packaged artifact. | `npm run build` succeeds and produces `packages/server/public/`. `node bin/cc-viewer.js` opens the SPA at the printed URL. Re-do the M3 + M4 smoke against the prod bundle. | ~5 minutes |
+
+**Implementation contract at each milestone:**
+1. Mark the milestone marker task in `tasks.md` complete.
+2. Print a short status report: "🛑 Milestone {N} reached — {what shipped}. Please run the smoke test in plan.md §Smoke-Test Milestones row {N} and reply ok / blocker."
+3. Wait for the user's signal before starting the next phase. Do not pre-emptively start the next user story.
+4. If the user reports a blocker, fix-in-place before resuming.
+
+**Skip rule:** Milestones may be skipped only with explicit user permission (e.g., "skip M6, do them together"). Don't conflate two milestones silently.

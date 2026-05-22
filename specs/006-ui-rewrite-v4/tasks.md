@@ -37,6 +37,7 @@ description: "Task list for UI Rewrite v4 — three-pane transcript workspace"
 - [ ] T002 Recreate the minimum bootstrap so `npm --workspace @cc-viewer/ui run typecheck` and `npm run build:ui` still succeed: create `packages/ui/src/main.tsx` that mounts a placeholder `<div>cc-transcript-viewer rebuilding…</div>` into `#root`, and create an empty `packages/ui/src/index.css` (Tailwind v4 directive only: `@import "tailwindcss";`). Confirm `npm run build:ui` exits 0.
 - [ ] T003 [P] Verify the cleanup did not touch backend or shared: run `npm --workspace @cc-viewer/server run test` and `npm --workspace @cc-viewer/shared run test` (if it has a runner) — both must pass with zero changes. If anything fails, the cleanup overreached — revert and redo T001 more surgically.
 - [ ] T004 [P] Port design tokens from `.design/v4/project/app.css` into `packages/ui/src/index.css` under Tailwind v4 `@theme` layers. Required token families (named per the design's CSS variables): surface-0/1/2, text-0/1/2/3, text-disabled, border-1/2, accent, accent-2, green, red, font-sans (Geist), font-mono (Geist Mono), font-serif (Instrument Serif). Wrap dark theme variables under `[data-theme="dark"]` selector and light theme under `[data-theme="light"]`. Add `[data-density="compact"]` overrides for the spacing/typography variables the design uses. Import `@fontsource/geist-sans`, `@fontsource/geist-mono`, `@fontsource/instrument-serif` (already in `package.json`).
+- [ ] **🛑 MILESTONE M1 — Clean slate (smoke test)**. Stop here. Verify per `plan.md` §Smoke-Test Milestones row M1: `npm run build:ui` exits 0; `npm test` is green; DevTools shows `<html data-theme="dark">` with the design-token CSS variables resolved. Wait for the user's "ok" before starting Phase 2.
 
 **Checkpoint**: `packages/ui/src/` is empty except for `main.tsx` + `index.css` with design tokens. `npm run build:ui` succeeds. `npm test` (server + shared) is green.
 
@@ -96,6 +97,7 @@ description: "Task list for UI Rewrite v4 — three-pane transcript workspace"
 
 - [ ] T031 Create `packages/ui/src/App.tsx`: top-level component. Wires `QueryClientProvider` (TanStack Query), subscribes to `useWorkspace` and writes `data-theme`/`data-density` onto `document.documentElement`, mounts the `Workspace` layout, mounts the three overlay portals (search/jumper/report) and the `StatusBar`. Uses `useKeyboard` (T029). Depends on T019, T029, T032 (Workspace).
 - [ ] T032 Recreate `packages/ui/src/main.tsx` (T002 left a stub): create the React root, import `./index.css`, mount `<App />`. Depends on T031.
+- [ ] **🛑 MILESTONE M2 — Foundational shell (smoke test)**. Stop here. Verify per `plan.md` §Smoke-Test Milestones row M2: app boots to an empty three-region grid, pressing `t` toggles `data-theme` on `<html>`, UI typecheck is clean. Wait for the user's "ok" before starting Phase 3.
 
 **Checkpoint**: All foundations in place. `npm --workspace @cc-viewer/ui run typecheck` is green. The app boots to a blank workspace shell (no panes yet) but `data-theme`/`data-density` switch on keystroke. User story phases can now start in parallel.
 
@@ -135,6 +137,7 @@ description: "Task list for UI Rewrite v4 — three-pane transcript workspace"
 - [ ] T056 [P] [US1] Create `packages/ui/src/components/inspector/InspectorDiff.tsx`: crumb + "Copy path" button + full diff (no clipping).
 - [ ] T057 [US1] Create `packages/ui/src/components/inspector/Inspector.tsx`: router that reads `useFocus` and renders Empty/Request/User/Tool/Diff. Depends on T052–T056.
 - [ ] T058 [US1] Wire `App.tsx` → `Workspace` → mount `Sidebar` (T040), `Transcript` (T050), `Inspector` (T057), `StatusBar` (T034). Default focus on session load: last request of last turn, instant-scroll into view via `initialJumpToBottom` from T028.
+- [ ] **🛑 MILESTONE M3 — Read flow / US1 (smoke test)**. Stop here. Verify per `plan.md` §Smoke-Test Milestones row M3: pick a non-empty session, see three panes render, scroll a 10k+ message session bottom→top without visible hitch, click a tool capsule → inspector switches to Tool view, toggle inspector via header button. Wait for the user's "ok" before starting Phase 4.
 
 **Checkpoint**: A user can launch the app, pick a session from the sidebar, see the full transcript rendered, scroll smoothly through 10k+ messages, click any node/block to focus it, and watch the inspector update. The status bar shows the position breadcrumb. Theme + density toggles work from the header (T031 already wired the `data-theme` / `data-density` effect).
 
@@ -154,6 +157,7 @@ description: "Task list for UI Rewrite v4 — three-pane transcript workspace"
 - [ ] T062 [P] [US2] Update `TranscriptHeader` (T041) to render the subagent breadcrumb when `useSessionStack.isSubagent()` is true: "Back to [parent title]" button + "Subagent transcript › spawned from Turn [parentTurnId]". Back button calls `useSessionStack.pop()`.
 - [ ] T063 [US2] Wire pop-back focus restoration: after `useSessionStack.pop()` returns the prior frame's `focusSnapshot`, restore `useFocus` to the snapshot's nodeId/blockId and instant-scroll `bodyRef.scrollTop` to the snapshot's scrollTop.
 - [ ] T064 [US2] Update `Inspector` to also fire `onDrill` when an `InspectorTool` view exposes a subagent — pass the same `useSessionStack.push` path. Inspector-CTA *visual* affordance lives in US7 (T085); the wiring is shared here so the path is ready when US7 lands.
+- [ ] **🛑 MILESTONE M4 — P1 MVP (smoke test)**. Stop here. Verify per `plan.md` §Smoke-Test Milestones row M4: drill into a subagent from a capsule (see "Back to [parent]" breadcrumb), click back, parent restored at prior focus + scroll. This is the demoable MVP. Wait for the user's "ok" before starting Phase 5.
 
 **Checkpoint**: Drilling into and out of subagents works from the inline capsule. Parent focus and scroll restore on pop. The two P1 stories together = MVP.
 
@@ -208,6 +212,7 @@ description: "Task list for UI Rewrite v4 — three-pane transcript workspace"
 - [ ] T077 [P] [US5] Result row: badge (`hit.kind`) + session title + sanitized highlighted snippet (via `rehype-sanitize` from `react-markdown` deps) + target turn id + time. Hover/arrow sets active; Enter calls `onPick(hit)`.
 - [ ] T078 [US5] In `App.tsx` (T031), wire `onPick`: if `hit.sessionId !== current.id`, fetch via `getSession` (T014) and `useSessionStack.replaceRoot()` with the resulting `SessionView`; then `useFocus.setNode` to the hit's target turn and `scrollNodeIntoView`. Always close the palette via `useOverlays.closeAll()`.
 - [ ] T079 [US5] Mount `<SearchPalette>` from `App.tsx`. Keyboard wiring for `⌘K` / `Ctrl+K` / `/` is already in `useKeyboard` (T029, T065); the sidebar `SearchButton` (T036) also calls `useOverlays.openSearch()`.
+- [ ] **🛑 MILESTONE M5 — All P2 stories (smoke test)**. Stop here. Verify per `plan.md` §Smoke-Test Milestones row M5: walk through every FR-080 shortcut, exercise live-tail toast + `Shift+G` follow on an active session, and run a cross-session search via `⌘K` with `↑`/`↓`/`Enter` navigation. Wait for the user's "ok" before starting Phase 8.
 
 **Checkpoint**: Search across sessions works, including the indexing-progress strip, snippet sanitization, and result-pick navigation.
 
@@ -261,6 +266,7 @@ description: "Task list for UI Rewrite v4 — three-pane transcript workspace"
 - [ ] T085 [US8] Verify the header (T041) calls `useWorkspace.toggleTheme()` and `useWorkspace.toggleDensity()`. The `data-theme` / `data-density` effect in `App.tsx` (T031) already syncs the DOM attributes.
 - [ ] T086 [US8] Verify the `[data-density="compact"]` token overrides in `index.css` (T004) cover everywhere the design's density rule applies: sidebar row height, transcript node padding, inspector metric row padding, status bar font-size.
 - [ ] T087 [US8] Verify `t` shortcut → `useWorkspace.toggleTheme()` is in `useKeyboard` (already covered by T029/T065).
+- [ ] **🛑 MILESTONE M6 — All P3 stories (smoke test)**. Stop here. Verify per `plan.md` §Smoke-Test Milestones row M6: open Session Report (`r`) and see all sections populated; focus a subagent-spawning tool in the inspector to see its drill CTA; toggle theme + density from the header and verify the three panes reflow cleanly. Wait for the user's "ok" before starting Phase 11.
 
 **Checkpoint**: All 8 user stories functional and independently demoable.
 
@@ -302,6 +308,7 @@ description: "Task list for UI Rewrite v4 — three-pane transcript workspace"
 
 - [ ] T104 Run `npm run build` (full pipeline: build:ui → copy:ui → build:server → inline:shared). Verify `packages/server/public/` contains the SPA, the server `dist/` builds, and `npm run pack:dry` reports no missing files.
 - [ ] T105 CLI smoke per quickstart §6: `node bin/cc-viewer.js` opens the SPA at `http://127.0.0.1:<auto-port>/`. Re-run US1 smoke against the production bundle to confirm SC-010.
+- [ ] **🛑 MILESTONE M7 — Production smoke (final smoke test)**. Stop here. Verify per `plan.md` §Smoke-Test Milestones row M7: `npm run build` succeeds, `packages/server/public/` contains the SPA, `node bin/cc-viewer.js` opens the SPA at the printed URL, M3 + M4 smoke re-pass against the prod bundle. Wait for the user's final "ok" before tagging the rewrite complete.
 
 ### Final docs touch
 
