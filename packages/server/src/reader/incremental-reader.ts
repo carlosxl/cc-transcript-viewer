@@ -1,8 +1,8 @@
 // packages/server/src/reader/incremental-reader.ts
 import { open, stat } from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
-import type { Turn } from '@cc-viewer/shared'
-import { parseJSONL } from './parser.js'
+import type { Turn, ClaudeRowOrUnknown } from '@cc-viewer/shared'
+import { parseJSONL, parseRowsFromJSONL } from './parser.js'
 import { eventsToTurns } from './normalizer.js'
 
 /**
@@ -42,22 +42,27 @@ export class IncrementalReader {
 
   /**
    * Read all bytes appended since the last call. Returns the parsed delta
-   * as Turn[]. Empty array when there are no complete new lines (a partial
-   * line in flight stays in the buffer).
+   * as `{ turns, rows }`. Empty arrays when there are no complete new lines
+   * (a partial line in flight stays in the buffer).
    *
    * Recovers from:
    *   - Inode rotation: file replaced with a different inode → close old fd,
    *     reopen, reset offset to 0 + parse from beginning.
    *   - Truncation: file size shrank below the tracked offset → reset to 0.
    *   - File temporarily unavailable: returns []; the next call retries.
+   *
+   * 007-ui-information-revamp: returns BOTH the legacy Turn[] projection
+   * AND the schema-typed ClaudeRowOrUnknown[] so the SSE handler can fan out
+   * to consumers of either shape.
    */
-  async readNew(key: string, jsonlPath: string): Promise<Turn[]> {
+  async readNew(key: string, jsonlPath: string): Promise<{ turns: Turn[]; rows: ClaudeRowOrUnknown[] }> {
+    const empty = { turns: [] as Turn[], rows: [] as ClaudeRowOrUnknown[] }
     let state = this.states.get(key)
     if (!state) {
       // Late init guard. SSE handlers always init first; this branch keeps
       // a misuse from silently returning all turns on unknown keys.
       await this.init(key, jsonlPath)
-      return []
+      return empty
     }
 
     let st: Awaited<ReturnType<typeof stat>>
@@ -66,7 +71,7 @@ export class IncrementalReader {
     } catch {
       // File momentarily missing (rotation in progress). Caller's chokidar
       // 'unlink' handler is the authoritative signal; we just return [].
-      return []
+      return empty
     }
 
     // Inode rotation: re-open from the new inode at offset 0.
@@ -85,7 +90,7 @@ export class IncrementalReader {
       this.states.set(key, state)
     }
 
-    if (st.size === state.offset && state.buffer.length === 0) return []
+    if (st.size === state.offset && state.buffer.length === 0) return empty
 
     if (!state.fh) state.fh = await open(jsonlPath, 'r')
 
@@ -111,13 +116,14 @@ export class IncrementalReader {
 
     // Split on \n; keep the last element (partial or empty) in the buffer.
     const newlineIdx = state.buffer.lastIndexOf('\n')
-    if (newlineIdx === -1) return [] // no complete line yet
+    if (newlineIdx === -1) return empty // no complete line yet
 
     const completeText = state.buffer.slice(0, newlineIdx + 1)
     state.buffer = state.buffer.slice(newlineIdx + 1)
 
     const { events } = parseJSONL(completeText)
-    return eventsToTurns(events)
+    const { rows } = parseRowsFromJSONL(completeText)
+    return { turns: eventsToTurns(events), rows }
   }
 
   /** Close the file handle for a single key. */

@@ -44,6 +44,37 @@ export async function apiGet<T>(path: string, opts: Options = {}): Promise<T> {
 }
 
 /**
+ * Fetch a /api/ blob endpoint as raw text (the off-loaded Bash output blob,
+ * file-history backup blob, etc.). Errors are surfaced as `ApiError` with the
+ * JSON-encoded `{error}` payload when present (the file-blob endpoints both
+ * emit a JSON body on 400/404).
+ */
+export async function apiGetText(path: string, opts: Options = {}): Promise<string> {
+  if (!path.startsWith('/api/')) {
+    throw new Error(`apiGetText: refusing non-/api path ${path}`)
+  }
+  const res = await fetch(path, { method: 'GET', signal: opts.signal })
+  if (!res.ok) {
+    let code = 'http_error'
+    let message = `${res.status} ${res.statusText}`
+    try {
+      const body = (await res.json()) as ErrorResponse | { error?: string }
+      if (typeof (body as { error?: unknown }).error === 'string') {
+        code = (body as { error: string }).error
+        message = code
+      } else {
+        code = (body as ErrorResponse)?.error?.code ?? code
+        message = (body as ErrorResponse)?.error?.message ?? message
+      }
+    } catch {
+      // non-JSON body — keep generic message
+    }
+    throw new ApiError(code, message, res.status)
+  }
+  return res.text()
+}
+
+/**
  * SSE subscription. Returns an unsubscribe function.
  *
  * The caller registers per-event listeners via the `on` map; unknown events

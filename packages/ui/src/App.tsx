@@ -15,12 +15,11 @@ import { Workspace } from '@/components/layout/Workspace'
 import { StatusBar } from '@/components/layout/StatusBar'
 import { Sidebar } from '@/components/sidebar/Sidebar'
 import { Transcript, type TranscriptHandle } from '@/components/transcript/Transcript'
-import { Inspector } from '@/components/inspector/Inspector'
 import { TurnJumper } from '@/components/overlays/TurnJumper'
+import { ImageLightbox } from '@/components/overlays/ImageLightbox'
 import { SearchPalette } from '@/components/overlays/SearchPalette'
 import { SessionReport } from '@/components/overlays/SessionReport'
 import type {
-  FocusedBlockMeta,
   FocusedNodeMeta,
   SearchHit,
   SessionDetailResponse,
@@ -57,7 +56,6 @@ function WorkspaceShell() {
   const popFrame = useSessionStack((s) => s.pop)
   const resetFocus = useFocus((s) => s.reset)
   const setNode = useFocus((s) => s.setNode)
-  const setBlock = useFocus((s) => s.setBlock)
   const view = useSessionStack((s) => s.stack[s.stack.length - 1]?.view ?? null)
   const livePending = useLiveTail((s) => s.livePending)
 
@@ -204,37 +202,48 @@ function WorkspaceShell() {
     bodyRef,
   })
 
-  // Default focus on first paint of a session: last request of the last turn.
+  // Default focus on first paint of a session. Live: tail behavior — focus the
+  // last request and scroll to the bottom so the latest assistant output is
+  // visible. Historical: read-from-top — focus the first turn and leave the
+  // viewport at the top so the user starts at the beginning.
   // Keyed on the stack-top view id so subagent drill-ins also trigger a fresh
-  // default focus + initial scroll-to-bottom.
+  // default focus.
   useEffect(() => {
     if (!view || view.turns.length === 0) return
     if (useFocus.getState().nodeId) return // don't override a restored snapshot
-    const last = view.turns[view.turns.length - 1]
-    const r = last.requests[last.requests.length - 1]
-    if (r) {
-      setNode(r.id, {
-        kind: 'request',
-        turn: last,
-        request: r,
-        idx: last.requests.length,
-        total: last.requests.length,
-      })
+    if (view.isLive) {
+      const last = view.turns[view.turns.length - 1]
+      const r = last.requests[last.requests.length - 1]
+      if (r) {
+        setNode(r.id, {
+          kind: 'request',
+          turn: last,
+          request: r,
+          idx: last.requests.length,
+          total: last.requests.length,
+        })
+      } else {
+        setNode(last.userMsgId, { kind: 'user', turn: last })
+      }
+      transcriptHandle.current?.scrollToBottom('auto')
     } else {
-      setNode(last.userMsgId, { kind: 'user', turn: last })
+      const first = view.turns[0]
+      const r = first.requests[0]
+      if (r) {
+        setNode(r.id, {
+          kind: 'request',
+          turn: first,
+          request: r,
+          idx: 1,
+          total: first.requests.length,
+        })
+      } else {
+        setNode(first.userMsgId, { kind: 'user', turn: first })
+      }
     }
-    transcriptHandle.current?.scrollToBottom('auto')
     // intentionally not depending on setNode (stable) — only react to session changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view?.id])
-
-  const onJumpToBlock = useCallback(
-    (bid: string, meta: FocusedBlockMeta) => {
-      setBlock(bid, meta)
-      transcriptHandle.current?.scrollNodeIntoView(meta.request.id, { behavior: 'smooth' })
-    },
-    [setBlock],
-  )
+  }, [view?.id, view?.isLive])
 
   // Shift+G / LiveTailToast click: merge any buffered pending turns into the
   // detail query cache, instant-scroll to the new bottom, and dismiss the toast.
@@ -265,30 +274,42 @@ function WorkspaceShell() {
   // SearchPalette pick: if the hit lives in a different session, swap the
   // sidebar selection (which triggers the existing fetch path), then focus
   // the matching turn. closeAll() is called either way.
+  //
+  // 007-ui-information-revamp T052: SearchHit.turnUuid is the *row* uuid that
+  // matched (user, assistant, attachment, system — any indexed row). Resolve
+  // it to the owning SessionTurn via three fallbacks:
+  //   1) the row is a user prompt → turn.userMsgId / turn.id direct match
+  //   2) the row is an assistant request → turn.requests[i].id direct match
+  //   3) the row is something else (attachment, system, state) → look up the
+  //      row's promptId in view.rows and find the SessionTurn whose promptId
+  //      matches. Covers the new FTS5 indexing scope from T050.
   const onPickSearchHit = useCallback(
     async (hit: SearchHit) => {
       useOverlays.getState().closeAll()
-      const focusTurn = (turnId: string) => {
+      const focusByRowUuid = (rowUuid: string) => {
         // The target session may not be in the stack yet (cross-session jump);
         // poll briefly for the next render where the stack-top view has the turn.
         let attempts = 0
         const tryFocus = () => {
           const v = useSessionStack.getState().current()?.view
-          const turn = v?.turns.find((t) => t.id === turnId || t.userMsgId === turnId)
-          if (turn) {
-            const last = turn.requests[turn.requests.length - 1]
-            if (last) {
-              setNode(last.id, {
+          const resolved = v ? resolveSearchHit(v, rowUuid) : null
+          if (resolved) {
+            if (resolved.request) {
+              setNode(resolved.request.id, {
                 kind: 'request',
-                turn,
-                request: last,
-                idx: turn.requests.length,
-                total: turn.requests.length,
+                turn: resolved.turn,
+                request: resolved.request,
+                idx: resolved.requestIdx,
+                total: resolved.turn.requests.length,
               })
-              transcriptHandle.current?.scrollNodeIntoView(last.id, { behavior: 'smooth' })
+              transcriptHandle.current?.scrollNodeIntoView(resolved.request.id, {
+                behavior: 'smooth',
+              })
             } else {
-              setNode(turn.userMsgId, { kind: 'user', turn })
-              transcriptHandle.current?.scrollNodeIntoView(turn.userMsgId, { behavior: 'smooth' })
+              setNode(resolved.turn.userMsgId, { kind: 'user', turn: resolved.turn })
+              transcriptHandle.current?.scrollNodeIntoView(resolved.turn.userMsgId, {
+                behavior: 'smooth',
+              })
             }
             return
           }
@@ -310,7 +331,7 @@ function WorkspaceShell() {
           /* The active query effect will retry; focus poll will wait. */
         }
       }
-      focusTurn(hit.turnUuid)
+      focusByRowUuid(hit.turnUuid)
     },
     [activeSessionId, queryClient, setNode],
   )
@@ -357,12 +378,12 @@ function WorkspaceShell() {
             <EmptyTranscript hasSelection={activeSessionId != null} />
           )
         }
-        inspector={<Inspector onJumpToBlock={onJumpToBlock} onDrillSubagent={onDrillSubagent} />}
         status={<StatusBar />}
       />
       <TurnJumper onPick={onPickTurn} />
       <SearchPalette onPick={onPickSearchHit} />
       <SessionReport sessionId={activeSessionId} sessionTitle={activeMeta?.title ?? ''} />
+      <ImageLightbox />
     </>
   )
 }
@@ -373,6 +394,46 @@ function EmptyTranscript({ hasSelection }: { hasSelection: boolean }) {
       {hasSelection ? 'Loading session…' : 'Select a session from the sidebar.'}
     </div>
   )
+}
+
+/**
+ * Resolve a search-hit row UUID to the owning SessionTurn (and optionally the
+ * matching request within it). Three fallbacks in priority order:
+ *   1) Direct match against SessionTurn.userMsgId/id (user-prompt hits).
+ *   2) Direct match against Request.id (assistant-row hits).
+ *   3) Look up the row's `promptId` in view.rows and find the SessionTurn
+ *      whose `promptId` matches (attachment, system, state-change hits).
+ */
+function resolveSearchHit(
+  view: { turns: SessionTurn[]; rows: import('@/lib/types').ClaudeRowOrUnknown[] },
+  rowUuid: string,
+): { turn: SessionTurn; request?: import('@/lib/types').Request; requestIdx: number } | null {
+  for (const turn of view.turns) {
+    if (turn.id === rowUuid || turn.userMsgId === rowUuid) {
+      return { turn, requestIdx: turn.requests.length }
+    }
+    const reqIdx = turn.requests.findIndex((r) => r.id === rowUuid)
+    if (reqIdx !== -1) {
+      const request = turn.requests[reqIdx]!
+      return { turn, request, requestIdx: reqIdx + 1 }
+    }
+  }
+  // Row-level fallback — find the row, read its promptId, match the SessionTurn.
+  for (const row of view.rows) {
+    const uuid = (row as { uuid?: unknown }).uuid
+    if (uuid !== rowUuid) continue
+    const promptId = (row as { promptId?: unknown }).promptId
+    if (typeof promptId !== 'string') return null
+    const turn = view.turns.find((t) => t.promptId === promptId)
+    if (!turn) return null
+    if (turn.requests.length === 0) return { turn, requestIdx: 0 }
+    return {
+      turn,
+      request: turn.requests[turn.requests.length - 1]!,
+      requestIdx: turn.requests.length,
+    }
+  }
+  return null
 }
 
 export default function App() {

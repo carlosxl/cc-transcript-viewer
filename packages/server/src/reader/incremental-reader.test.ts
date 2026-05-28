@@ -26,8 +26,9 @@ describe('IncrementalReader', () => {
     const path = join(tmp, 's.jsonl')
     writeFileSync(path, validUserLine('u1', 'first'), 'utf8')
     await reader.init('s', path)
-    const turns = await reader.readNew('s', path)
+    const { turns, rows } = await reader.readNew('s', path)
     expect(turns).toEqual([])
+    expect(rows).toEqual([])
   })
 
   it('returns turns appended after init', async () => {
@@ -35,9 +36,12 @@ describe('IncrementalReader', () => {
     writeFileSync(path, validUserLine('u1', 'first'), 'utf8')
     await reader.init('s', path)
     appendFileSync(path, validUserLine('u2', 'second'), 'utf8')
-    const turns = await reader.readNew('s', path)
+    const { turns, rows } = await reader.readNew('s', path)
     expect(turns.length).toBe(1)
     expect(turns[0]!.uuid).toBe('u2')
+    // 007: rows stream parallels turns for the same appended JSONL lines.
+    expect(rows.length).toBe(1)
+    expect((rows[0] as { uuid?: string }).uuid).toBe('u2')
   })
 
   it('handles multi-call append: 2 lines added in 2 reads', async () => {
@@ -47,13 +51,13 @@ describe('IncrementalReader', () => {
 
     appendFileSync(path, validUserLine('u2', 'two'), 'utf8')
     const r1 = await reader.readNew('s', path)
-    expect(r1.length).toBe(1)
-    expect(r1[0]!.uuid).toBe('u2')
+    expect(r1.turns.length).toBe(1)
+    expect(r1.turns[0]!.uuid).toBe('u2')
 
     appendFileSync(path, validUserLine('u3', 'three'), 'utf8')
     const r2 = await reader.readNew('s', path)
-    expect(r2.length).toBe(1)
-    expect(r2[0]!.uuid).toBe('u3')
+    expect(r2.turns.length).toBe(1)
+    expect(r2.turns[0]!.uuid).toBe('u3')
   })
 
   it('does NOT parse a partial trailing line (Pitfall 4 — never parse partial)', async () => {
@@ -65,14 +69,15 @@ describe('IncrementalReader', () => {
     const half = '{"type":"user","uuid":"u2","sessionId":"s","timestamp":"2026-05-09T00:00:00Z","message":{"role":"user","con'
     appendFileSync(path, half, 'utf8')
     const r1 = await reader.readNew('s', path)
-    expect(r1).toEqual([]) // partial line buffered, not parsed
+    expect(r1.turns).toEqual([]) // partial line buffered, not parsed
+    expect(r1.rows).toEqual([])
 
     // Append the rest of the line plus a newline.
     appendFileSync(path, 'tent":"hello"}}\n', 'utf8')
     const r2 = await reader.readNew('s', path)
-    expect(r2.length).toBe(1)
-    expect(r2[0]!.uuid).toBe('u2')
-    expect(r2[0]!.textBlocks).toEqual(['hello'])
+    expect(r2.turns.length).toBe(1)
+    expect(r2.turns[0]!.uuid).toBe('u2')
+    expect(r2.turns[0]!.textBlocks).toEqual(['hello'])
   })
 
   it('recovers from inode rotation: re-reads the new inode from offset 0', async () => {
@@ -84,7 +89,7 @@ describe('IncrementalReader', () => {
     renameSync(path, join(tmp, 's.old'))
     writeFileSync(path, validUserLine('rot', 'rotated'), 'utf8')
 
-    const turns = await reader.readNew('s', path)
+    const { turns } = await reader.readNew('s', path)
     expect(turns.length).toBe(1)
     expect(turns[0]!.uuid).toBe('rot')
   })
@@ -95,7 +100,7 @@ describe('IncrementalReader', () => {
     await reader.init('s', path)
     // Truncate to one shorter line.
     writeFileSync(path, validUserLine('fresh', 'fresh'), 'utf8')
-    const turns = await reader.readNew('s', path)
+    const { turns } = await reader.readNew('s', path)
     expect(turns.length).toBe(1)
     expect(turns[0]!.uuid).toBe('fresh')
   })
@@ -106,12 +111,12 @@ describe('IncrementalReader', () => {
     await reader.init('s', path)
     rmSync(path)
     const r1 = await reader.readNew('s', path)
-    expect(r1).toEqual([])
+    expect(r1.turns).toEqual([])
     // Re-create file with a new inode + one line; rotation handler fires.
     writeFileSync(path, validUserLine('u2', 'reborn'), 'utf8')
     const r2 = await reader.readNew('s', path)
-    expect(r2.length).toBe(1)
-    expect(r2[0]!.uuid).toBe('u2')
+    expect(r2.turns.length).toBe(1)
+    expect(r2.turns[0]!.uuid).toBe('u2')
   })
 
   it('close releases the file handle and clears buffered state', async () => {
@@ -124,7 +129,7 @@ describe('IncrementalReader', () => {
     appendFileSync(path, validUserLine('u2', 'after-close'), 'utf8')
     // Expected: readNew sees the late-init branch and resets to current EOF,
     // returning [] for this call — see incremental-reader.ts comment.
-    const turns = await reader.readNew('s', path)
+    const { turns } = await reader.readNew('s', path)
     expect(turns).toEqual([])
   })
 
@@ -138,7 +143,7 @@ describe('IncrementalReader', () => {
     appendFileSync(a, validUserLine('a2', 'AAA'), 'utf8')
     const ra = await reader.readNew('a', a)
     const rb = await reader.readNew('b', b)
-    expect(ra.map(t => t.uuid)).toEqual(['a2'])
-    expect(rb).toEqual([])
+    expect(ra.turns.map(t => t.uuid)).toEqual(['a2'])
+    expect(rb.turns).toEqual([])
   })
 })

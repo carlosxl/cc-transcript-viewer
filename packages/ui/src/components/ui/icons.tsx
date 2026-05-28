@@ -122,6 +122,13 @@ export const I = {
     <circle cx="12" cy="12" r="8" />,
     { fill: 'currentColor', stroke: 'none' },
   ),
+  compact: svg(14, '0 0 24 24', <>
+    <path d="M4 6h16" />
+    <path d="M4 12h16" />
+    <path d="M4 18h16" />
+    <path d="m7 9 5-3 5 3" />
+    <path d="m7 15 5 3 5-3" />
+  </>),
 } as const
 
 export type IconName = keyof typeof I

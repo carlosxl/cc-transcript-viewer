@@ -1,10 +1,17 @@
-import type { Block, Request, SessionTurn, FocusedBlockMeta, FocusedNodeMeta, ToolBlock } from '@/lib/types'
-import { fmtCost, fmtDuration } from '@/lib/format'
+import type {
+  FocusedBlockMeta,
+  FocusedNodeMeta,
+  Request,
+  SessionTurn,
+  ToolBlock,
+} from '@/lib/types'
+import { fmtCost, fmtDuration, fmtK } from '@/lib/format'
+import { splitRequest, type AssistantItem, type HarnessItem } from '@/lib/splitRequest'
 import { useFocus } from '@/stores/useFocus'
 import { BlockText } from './blocks/BlockText'
 import { BlockThinking } from './blocks/BlockThinking'
-import { BlockToolCapsule } from './blocks/BlockToolCapsule'
-import { BlockDiff } from './blocks/BlockDiff'
+import { BlockToolCall } from './blocks/BlockToolCall'
+import { BlockToolResult } from './blocks/BlockToolResult'
 
 interface RequestNodeProps {
   turn: SessionTurn
@@ -16,80 +23,163 @@ interface RequestNodeProps {
   onDrillSubagent?: (block: ToolBlock) => void
 }
 
-export function RequestNode({ turn, request, idx, total, onFocusNode, onFocusBlock, onDrillSubagent }: RequestNodeProps) {
+export function RequestNode({
+  turn,
+  request,
+  idx,
+  total,
+  onFocusNode,
+  onFocusBlock,
+  onDrillSubagent,
+}: RequestNodeProps) {
   const focusedId = useFocus((s) => s.nodeId)
   const focusedBlockId = useFocus((s) => s.blockId)
-  const focused = focusedId === request.id && !focusedBlockId
-  const ttftText = request.ttft != null ? `${Math.round(request.ttft)}ms TTFT` : ''
+  const envelopeFocused = focusedId === request.id && !focusedBlockId
+
+  const { assistantBlocks, harnessResults } = splitRequest(request)
+  const focusRequest = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onFocusNode(request.id, { kind: 'request', turn, request, idx, total })
+  }
+
+  const toolDurMs = harnessResults.reduce((s, h) => s + (h.toolUse?.durationMs ?? 0), 0)
+  const toolCount = harnessResults.filter((h) => h.toolUse).length
+
   return (
-    <div
-      className="node request-node my-2.5 rounded-r-sm border-l-2 border-transparent pl-3 pt-1 transition-colors"
-      data-focused={focused || undefined}
-      data-node-id={request.id}
-      onClick={() => onFocusNode(request.id, { kind: 'request', turn, request, idx, total })}
-      style={{
-        borderLeftColor: focused ? 'var(--accent)' : undefined,
-        background: focused ? 'linear-gradient(90deg, var(--accent-softer), transparent 40%)' : undefined,
-      }}
-    >
+    <div className="va-req-group" data-node-id={request.id} data-api-error={request.isApiError || undefined}>
       <div
-        className="node-label mb-1 flex cursor-pointer items-center gap-2 font-mono text-[10.5px] font-medium uppercase text-[var(--text-3)]"
-        style={{ letterSpacing: '0.05em', color: focused ? 'var(--accent-2)' : undefined }}
+        className={'va-request' + (envelopeFocused ? ' is-focused' : '')}
+        data-focused={envelopeFocused || undefined}
+        data-api-error={request.isApiError || undefined}
+        onClick={focusRequest}
       >
-        <span className="nl-id" style={{ color: focused ? 'var(--accent-2)' : 'var(--text-2)' }}>
-          REQUEST {request.id.slice(0, 8).toUpperCase()}
-        </span>
-        <span className="nl-meta" style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text-3)' }}>
-          · request {idx} of {total} · {fmtDuration(request.duration)}
-        </span>
-        <span className="nl-cost ml-auto" style={{ textTransform: 'none', letterSpacing: 0, color: focused ? 'var(--accent-2)' : 'var(--text-1)' }}>
-          {fmtCost(request.cost)}
-        </span>
+        <div className="va-rail va-rail-req" />
+        <div className="va-req-body">
+          <RequestCap request={request} idx={idx} total={total} />
+          {assistantBlocks.map((item) => (
+            <AssistantSlot
+              key={item.idx}
+              item={item}
+              bid={`${request.id}:b${item.idx}`}
+              request={request}
+              turn={turn}
+              focusedBlockId={focusedBlockId}
+              onFocusBlock={onFocusBlock}
+            />
+          ))}
+        </div>
       </div>
-      <div
-        className="req-marker-row my-1.5 flex cursor-pointer items-center gap-2 rounded-[3px] border border-dashed border-transparent px-2 py-1 font-mono text-[10.5px] text-[var(--text-3)] transition-colors hover:border-[var(--border-1)] hover:bg-[var(--surface-2)]"
-        data-focused={focused || undefined}
-        style={{
-          borderStyle: focused ? 'solid' : undefined,
-          borderColor: focused ? 'var(--accent-border)' : undefined,
-          background: focused ? 'var(--accent-soft)' : undefined,
-        }}
-      >
-        <span className="req-k" style={{ color: focused ? 'var(--accent-2)' : 'var(--text-1)' }}>
-          Request {idx}/{total}
-        </span>
-        <span className="sep text-[var(--text-disabled)]">·</span>
-        <span>
-          {request.blocks.length} {request.blocks.length === 1 ? 'block' : 'blocks'}
-        </span>
-        {ttftText && (
-          <>
-            <span className="sep text-[var(--text-disabled)]">·</span>
-            <span>{ttftText}</span>
-          </>
-        )}
-        <span className="sep text-[var(--text-disabled)]">·</span>
-        <span>{fmtDuration(request.duration)}</span>
-        <span className="req-cost ml-auto text-[var(--text-1)]">{fmtCost(request.cost)}</span>
-      </div>
-      {request.blocks.map((b, i) => (
-        <BlockSlot
-          key={i}
-          block={b}
-          bid={`${request.id}:b${i}`}
-          request={request}
-          turn={turn}
-          focusedBlockId={focusedBlockId}
-          onFocusBlock={onFocusBlock}
-          onDrillSubagent={onDrillSubagent}
-        />
-      ))}
+
+      {harnessResults.length > 0 && (
+        <div
+          className={'va-harness' + (envelopeFocused ? ' is-focused' : '')}
+          data-focused={envelopeFocused || undefined}
+          onClick={focusRequest}
+        >
+          <div className="va-rail va-rail-har" />
+          <div className="va-har-body">
+            <div className="va-cap va-cap-har">
+              <span>
+                HARNESS · {toolCount} tool {toolCount === 1 ? 'call' : 'calls'}
+                {toolDurMs > 0 ? ` · ${fmtDuration(toolDurMs)}` : ''}
+              </span>
+            </div>
+            {harnessResults.map((item) => (
+              <HarnessSlot
+                key={item.idx}
+                item={item}
+                bid={`${request.id}:b${item.idx}`}
+                request={request}
+                turn={turn}
+                focusedBlockId={focusedBlockId}
+                onFocusBlock={onFocusBlock}
+                onDrillSubagent={onDrillSubagent}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function BlockSlot({
-  block,
+function RequestCap({ request, idx, total }: { request: Request; idx: number; total: number }) {
+  const ttftText = request.ttft != null ? `${Math.round(request.ttft)}ms TTFT` : null
+  return (
+    <div className="va-cap" data-api-error={request.isApiError || undefined}>
+      <span className="seg req-k">REQ {idx}/{total}</span>
+      <span className="sep">·</span>
+      <span className="seg req-id">{request.displayId}</span>
+      {request.isApiError && (
+        <>
+          <span className="sep">·</span>
+          <span className="seg va-api-error-pill" title="Synthetic CLI error — the LLM never produced this turn">
+            API ERROR
+          </span>
+        </>
+      )}
+      {request.model && !request.isApiError && (
+        <>
+          <span className="sep">·</span>
+          <span className="seg va-sticky" data-kind="model">{shortModel(request.model)}</span>
+        </>
+      )}
+      {ttftText && !request.isApiError && (
+        <>
+          <span className="sep">·</span>
+          <span className="seg">{ttftText}</span>
+        </>
+      )}
+      {!request.isApiError && (
+        <>
+          <span className="sep">·</span>
+          <span className="seg">
+            {fmtK(request.tokens.in)} in · {fmtK(request.tokens.out)} out
+          </span>
+          <span className="seg cost">{fmtCost(request.cost)}</span>
+        </>
+      )}
+    </div>
+  )
+}
+
+function shortModel(m: string): string {
+  const match = m.match(/(opus|sonnet|haiku)-(\d+(?:-\d+)?)/i)
+  return match ? `${match[1]}-${match[2]}` : m
+}
+
+function AssistantSlot({
+  item,
+  bid,
+  request,
+  turn,
+  focusedBlockId,
+  onFocusBlock,
+}: {
+  item: AssistantItem
+  bid: string
+  request: Request
+  turn: SessionTurn
+  focusedBlockId: string | null
+  onFocusBlock: (bid: string, meta: FocusedBlockMeta) => void
+}) {
+  if (item.kind === 'text') return <BlockText block={item.block} />
+  if (item.kind === 'thinking') return <BlockThinking block={item.block} />
+  const focused = focusedBlockId === bid
+  return (
+    <BlockToolCall
+      block={item.block}
+      focused={focused}
+      onClick={(e) => {
+        e.stopPropagation()
+        onFocusBlock(bid, { bid, block: item.block, request, turn })
+      }}
+    />
+  )
+}
+
+function HarnessSlot({
+  item,
   bid,
   request,
   turn,
@@ -97,7 +187,7 @@ function BlockSlot({
   onFocusBlock,
   onDrillSubagent,
 }: {
-  block: Block
+  item: HarnessItem
   bid: string
   request: Request
   turn: SessionTurn
@@ -106,34 +196,20 @@ function BlockSlot({
   onDrillSubagent?: (block: ToolBlock) => void
 }) {
   const focused = focusedBlockId === bid
-  const handle = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    onFocusBlock(bid, { bid, block, request, turn })
-  }
-  if (block.kind === 'text') {
-    return <div className="block my-2">{<BlockText block={block} />}</div>
-  }
-  if (block.kind === 'thinking') {
-    return <div className="block my-2">{<BlockThinking block={block} />}</div>
-  }
-  if (block.kind === 'tool_use') {
-    return (
-      <div className="block my-2">
-        <BlockToolCapsule
-          block={block}
-          focused={focused}
-          onClick={handle}
-          onDrillSubagent={onDrillSubagent}
-        />
-      </div>
-    )
-  }
-  if (block.kind === 'diff') {
-    return (
-      <div className="block my-2">
-        <BlockDiff block={block} focused={focused} onClick={handle} />
-      </div>
-    )
-  }
-  return null
+  // Focus target: prefer the tool_use block (so the inspector reflects the same
+  // bid as the REQ-side call line). Fall back to the orphan diff when present.
+  const focusBlock = item.toolUse ?? item.diff
+  if (!focusBlock) return null
+  return (
+    <BlockToolResult
+      toolUse={item.toolUse}
+      diff={item.diff}
+      focused={focused}
+      onClick={(e) => {
+        e.stopPropagation()
+        onFocusBlock(bid, { bid, block: focusBlock, request, turn })
+      }}
+      onDrillSubagent={onDrillSubagent}
+    />
+  )
 }

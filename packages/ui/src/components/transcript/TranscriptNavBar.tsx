@@ -1,15 +1,13 @@
 import { useMemo } from 'react'
 import { I } from '@/components/ui/icons'
 import type { SessionView, SessionTurn } from '@/lib/types'
-import { fmtCost, fmtDuration, shortPreview } from '@/lib/format'
+import { fmtCost } from '@/lib/format'
 import { useFocus } from '@/stores/useFocus'
 
 interface TranscriptNavBarProps {
   view: SessionView
   onTurnStep: (delta: -1 | 1) => void
   onReqStep: (delta: -1 | 1) => void
-  onPromptStep: (delta: -1 | 1) => void
-  onToolStep: (delta: -1 | 1) => void
   onOpenJumper?: (anchor: DOMRect) => void
 }
 
@@ -17,21 +15,21 @@ export function TranscriptNavBar({
   view,
   onTurnStep,
   onReqStep,
-  onPromptStep,
-  onToolStep,
   onOpenJumper,
 }: TranscriptNavBarProps) {
   const nodeMeta = useFocus((s) => s.nodeMeta)
 
   const focusedTurn: SessionTurn | undefined = nodeMeta?.turn ?? view.turns[view.turns.length - 1]
+  const focusedTurnIdx = useMemo(
+    () => (focusedTurn ? view.turns.findIndex((t) => t.id === focusedTurn.id) : -1),
+    [view.turns, focusedTurn],
+  )
   const focusedRequestIdx = nodeMeta?.kind === 'request' ? nodeMeta.idx ?? -1 : -1
   const focusedTurnReqCount = focusedTurn?.requests.length ?? 0
   const focusedCost = useMemo(
     () => (focusedTurn ? focusedTurn.requests.reduce((s, r) => s + r.cost, 0) : 0),
     [focusedTurn],
   )
-  const promptPreview = focusedTurn ? shortPreview(focusedTurn.prompt, 90) : ''
-  void fmtDuration // reserved for future TTFT chip
 
   return (
     <div
@@ -47,8 +45,10 @@ export function TranscriptNavBar({
           <span className="k mr-0.5 text-[10px] font-medium uppercase text-[var(--text-3)]" style={{ letterSpacing: '0.05em' }}>
             Turn
           </span>
-          <span>{focusedTurn ? focusedTurn.id : '—'}</span>
-          <span className="muted text-[10px] text-[var(--text-3)]">/{view.turns.length}</span>
+          <span>
+            {focusedTurnIdx >= 0 ? focusedTurnIdx + 1 : '—'}
+            <span className="muted text-[var(--text-3)]">/{view.turns.length}</span>
+          </span>
         </button>
       </Stepper>
 
@@ -56,26 +56,7 @@ export function TranscriptNavBar({
         <StaticLabel k="Req" v={`${focusedRequestIdx >= 0 ? focusedRequestIdx : '—'}/${focusedTurnReqCount || '—'}`} />
       </Stepper>
 
-      <Stepper title="User prompt (skips stderr)" onPrev={() => onPromptStep(-1)} onNext={() => onPromptStep(1)}>
-        <StaticLabel k="Prompt" v="n / N" muted />
-      </Stepper>
-
-      <Stepper title="Tool call" onPrev={() => onToolStep(-1)} onNext={() => onToolStep(1)}>
-        <StaticLabel k="Tool" v="[ ]" muted />
-      </Stepper>
-
-      <div className="tx-nav-divider h-4 w-[1px] bg-[var(--border-1)]" />
-      <div className="tx-nav-prompt min-w-0 flex-1 truncate text-[12px] text-[var(--text-2)]">
-        {focusedTurn ? (
-          <span>
-            <em className="not-italic text-[var(--text-3)]">"</em>
-            {promptPreview}
-            <em className="not-italic text-[var(--text-3)]">"</em>
-          </span>
-        ) : (
-          <em className="not-italic text-[var(--text-3)]">No turn focused</em>
-        )}
-      </div>
+      <div className="tx-nav-spacer flex-1" />
       <div className="tx-nav-cost rounded-[3px] border border-[var(--border-1)] bg-[var(--surface-2)] px-[7px] py-[2px] font-mono text-[11px] whitespace-nowrap text-[var(--text-1)]">
         <span className="k mr-0.5 text-[var(--text-3)]">Turn cost</span> {fmtCost(focusedCost)}
       </div>

@@ -2,8 +2,8 @@
 import { readFile, stat } from 'node:fs/promises'
 import { existsSync, readdirSync } from 'node:fs'
 import { join, basename, extname, dirname } from 'node:path'
-import type { Session, Turn, SubagentRef, AggregatedUsage, UsageSummary, ClaudeEvent } from '@cc-viewer/shared'
-import { parseJSONL } from './parser.js'
+import type { Session, Turn, SubagentRef, AggregatedUsage, UsageSummary, ClaudeEvent, ClaudeRowOrUnknown } from '@cc-viewer/shared'
+import { parseJSONL, parseRowsFromJSONL } from './parser.js'
 import { eventsToTurns } from './normalizer.js'
 import { buildSubagentLinkages, applyLinkages } from './subagent-linker.js'
 
@@ -32,6 +32,9 @@ export async function loadSessionFromDisk(jsonlPath: string): Promise<SessionLoa
   const content = await readFile(jsonlPath, 'utf8')
   const { events, parseWarnings: mainWarnings } = parseJSONL(content)
   const mainTurns = eventsToTurns(events)
+  // 007-ui-information-revamp: schema-typed row stream alongside the legacy
+  // ClaudeEvent[] / Turn[] projections. Surfaces every row variant unmodified.
+  const { rows: mainRows } = parseRowsFromJSONL(content)
 
   // Derive session metadata from events.
   const sessionId = basename(jsonlPath, extname(jsonlPath))
@@ -58,6 +61,8 @@ export async function loadSessionFromDisk(jsonlPath: string): Promise<SessionLoa
       const { events: agentEvents, parseWarnings: w } = parseJSONL(agentContent)
       subagentWarnings += w
       subagentEventsByAgentId.set(agentId, agentEvents)
+      // 007: schema-typed row stream for the subagent JSONL.
+      const { rows: agentRows } = parseRowsFromJSONL(agentContent)
 
       const metaPath = join(subagentsDir, `agent-${agentId}.meta.json`)
       let meta: { agentType?: string; description?: string } = {}
@@ -76,6 +81,7 @@ export async function loadSessionFromDisk(jsonlPath: string): Promise<SessionLoa
         toolUseId: '',           // populated by applyLinkages below
         status: 'completed',     // overwritten by applyLinkages when signal exists
         turns: eventsToTurns(agentEvents),
+        rows: agentRows,
         childAgentIds: [],       // populated by applyLinkages below
       })
     }
@@ -105,7 +111,12 @@ export async function loadSessionFromDisk(jsonlPath: string): Promise<SessionLoa
     hasSubagents,
     totalUsage,
     turns: mainTurns,
+    rows: mainRows,
     subagents,
+    // 007: row-level parse warnings are not folded into this count to avoid
+    // double-counting — a malformed JSONL line fails both parsers. The legacy
+    // `parseWarnings` (one count per malformed line via parseJSONL) remains the
+    // source of truth. rowWarnings is retained for future diagnostic surfaces.
     parseWarnings: mainWarnings + subagentWarnings,
     ...(worktree.worktreeOf ? { worktreeOf: worktree.worktreeOf } : {}),
     ...(worktree.worktreeName ? { worktreeName: worktree.worktreeName } : {}),

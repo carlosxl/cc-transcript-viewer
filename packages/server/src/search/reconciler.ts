@@ -176,6 +176,7 @@ export class SearchReconciler {
       mainSize,
       session.turns,
       { title: title || session.title || sessionId, projectSlug },
+      session.rows,
     )
 
     // Subagent files are produced alongside the main load; indexFull each
@@ -197,6 +198,7 @@ export class SearchReconciler {
             st.size,
             sa.turns,
             { title: title || session.title || sessionId, projectSlug },
+            sa.rows,
           )
         } catch (err) {
           logError('search reconciler: subagent indexFull failed', err, {

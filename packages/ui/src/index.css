@@ -53,6 +53,10 @@
   --amber: oklch(0.82 0.14 80);
   --amber-soft: oklch(0.82 0.14 80 / 0.14);
   --violet: oklch(0.72 0.16 305);
+  --cyan: oklch(0.78 0.12 200);
+
+  /* YOU rail (Variant A transcript). Distinct from --amber (semantic ramp). */
+  --user-accent: #e8b96a;
 
   /* Diff palette */
   --diff-add-bg: oklch(0.78 0.13 155 / 0.08);
@@ -111,6 +115,9 @@
   --accent-soft: oklch(0.72 0.16 265 / 0.10);
   --accent-softer: oklch(0.72 0.16 265 / 0.05);
   --accent-border: oklch(0.72 0.16 265 / 0.4);
+
+  /* Darker amber for legibility on white surfaces */
+  --user-accent: #b88431;
 
   --diff-add-bg: oklch(0.78 0.13 155 / 0.10);
   --diff-add-fg: oklch(0.48 0.14 155);
@@ -171,6 +178,7 @@
   --color-amber: var(--amber);
   --color-amber-soft: var(--amber-soft);
   --color-violet: var(--violet);
+  --color-user-accent: var(--user-accent);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
@@ -199,6 +207,28 @@ html, body {
   height: 100vh;
 }
 ::selection { background: var(--accent-soft); color: var(--text-0); }
+
+/* Thin, theme-aware scrollbars for all scrollable panes.
+ * Firefox uses the modern `scrollbar-*` properties; WebKit/Blink uses the
+ * `-webkit-scrollbar-*` pseudo-elements. We render an 8px track with a soft
+ * thumb that brightens on hover, instead of the OS default. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-2) 35%, transparent) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-2) 32%, transparent);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-2) 55%, transparent);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-corner { background: transparent; }
 @layer base {
   button { font: inherit; color: inherit; background: none; border: none; padding: 0; cursor: pointer; }
   input, textarea { font: inherit; color: inherit; }
@@ -221,4 +251,1226 @@ html, body {
 @keyframes bd-in {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+
+/* =========================================================================
+ * Transcript pane — Variant A (Quieter chrome).
+ * Ported from .design/v5/project/explorations.css `.variant-a` block.
+ * Scoped under `.tx-variant-a` so styles don't leak outside the transcript.
+ * Token swaps from the source: --bg-0/1/2 → --surface-0/1/2.
+ * ========================================================================= */
+
+.tx-variant-a {
+  font-family: var(--font-sans);
+  color: var(--text-0);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+/* ----- Turn divider ----- */
+.tx-variant-a .va-turn { margin-bottom: 36px; }
+
+.tx-variant-a .va-turn-divider {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 4px 0;
+  margin: 0 0 16px;
+}
+.tx-variant-a .va-turn-divider > span { white-space: nowrap; flex-shrink: 0; }
+.tx-variant-a .va-turn-divider > span:first-child {
+  color: var(--text-0);
+  font-weight: 600;
+}
+.tx-variant-a .va-turn-divider .dot {
+  width: 3px; height: 3px; background: var(--text-disabled); border-radius: 99px; display: inline-block;
+}
+.tx-variant-a .va-turn-divider .rule {
+  flex: 1; height: 1px; background: var(--border-1); margin-left: 6px;
+}
+
+/* ----- YOU envelope ----- */
+.tx-variant-a .va-user {
+  display: grid; grid-template-columns: 16px 1fr; gap: 0;
+  margin: 4px 0 18px;
+  cursor: pointer;
+}
+.tx-variant-a .va-user-rail {
+  background: var(--user-accent);
+  width: 2px;
+  align-self: stretch;
+  border-radius: 1px;
+  opacity: 0.85;
+  transition: width 120ms ease, opacity 120ms ease;
+}
+.tx-variant-a .va-user-body { padding: 2px 0; min-width: 0; }
+.tx-variant-a .va-user-cap {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  padding: 2px 0 10px;
+  white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.tx-variant-a .va-user-cap .dot {
+  width: 2px; height: 2px; background: var(--text-disabled); border-radius: 99px;
+}
+.tx-variant-a .va-user-text {
+  font-size: 14px;
+  color: var(--text-0);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.tx-variant-a .va-user-text .va-md {
+  white-space: normal;
+}
+.tx-variant-a .va-md > :first-child { margin-top: 0; }
+.tx-variant-a .va-md > :last-child { margin-bottom: 0; }
+.tx-variant-a .va-md p { margin: 0 0 8px; }
+.tx-variant-a .va-md p:last-child { margin-bottom: 0; }
+.tx-variant-a .va-md ul,
+.tx-variant-a .va-md ol {
+  margin: 4px 0 8px;
+  padding-left: 22px;
+}
+.tx-variant-a .va-md li { margin: 2px 0; }
+.tx-variant-a .va-md li > p { margin: 0; }
+.tx-variant-a .va-md h1,
+.tx-variant-a .va-md h2,
+.tx-variant-a .va-md h3,
+.tx-variant-a .va-md h4 {
+  margin: 12px 0 6px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.tx-variant-a .va-md h1 { font-size: 17px; }
+.tx-variant-a .va-md h2 { font-size: 15.5px; }
+.tx-variant-a .va-md h3,
+.tx-variant-a .va-md h4 { font-size: 14px; }
+.tx-variant-a .va-md code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--text-1);
+}
+.tx-variant-a .va-md pre {
+  margin: 6px 0;
+  padding: 10px 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: 4px;
+  overflow-x: auto;
+}
+.tx-variant-a .va-md pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 12.5px;
+  color: var(--text-0);
+}
+.tx-variant-a .va-md blockquote {
+  margin: 6px 0;
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid var(--border-2);
+  color: var(--text-1);
+}
+.tx-variant-a .va-md a {
+  color: var(--accent-2);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent-2) 40%, transparent);
+}
+.tx-variant-a .va-md a:hover {
+  text-decoration-color: var(--accent-2);
+}
+.tx-variant-a .va-md hr {
+  border: 0;
+  border-top: 1px solid var(--border-1);
+  margin: 10px 0;
+}
+.tx-variant-a .va-md table {
+  border-collapse: collapse;
+  margin: 6px 0;
+  font-size: 13px;
+}
+.tx-variant-a .va-md th,
+.tx-variant-a .va-md td {
+  border: 1px solid var(--border-1);
+  padding: 4px 8px;
+  text-align: left;
+}
+.tx-variant-a .va-md th { background: var(--surface-1); font-weight: 600; }
+
+/* ----- Compaction summary disclosure ---------------------------------------
+ * The `/compact` synthetic user row carries a multi-KB LLM-generated recap.
+ * Rather than letting it dominate the transcript like every other prompt, we
+ * collapse it to a one-line preview + "show summary" toggle. The .va-user
+ * wrapper gets `is-compact-summary` so the YOU rail can switch to a muted
+ * variant — this isn't a real human turn. */
+.tx-variant-a .va-user.is-compact-summary .va-user-rail {
+  background: var(--text-3);
+}
+.tx-variant-a .va-user.is-compact-summary .va-user-cap > span:first-child {
+  color: var(--text-3);
+  letter-spacing: 0.06em;
+}
+.tx-variant-a .va-compact-summary {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tx-variant-a .va-compact-summary-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  background: transparent;
+  border: 0;
+  padding: 2px 6px 2px 0;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.tx-variant-a .va-compact-summary-head:hover { color: var(--text-1); }
+.tx-variant-a .va-compact-summary-head .k { color: var(--text-3); }
+.tx-variant-a .va-compact-summary-hint { color: var(--text-1); }
+.tx-variant-a .va-compact-summary-meta { color: var(--text-3); }
+.tx-variant-a .va-compact-summary-preview {
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.45;
+  font-style: italic;
+}
+.tx-variant-a .va-compact-summary-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-1);
+  background: var(--surface-1);
+  border-left: 2px solid var(--border-1);
+  padding: 8px 10px;
+  margin: 0;
+  max-height: 480px;
+  overflow: auto;
+  border-radius: 0 4px 4px 0;
+}
+
+.tx-variant-a .va-user-attach-group {
+  margin-top: 8px;
+}
+.tx-variant-a .va-user-attach {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-2);
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  padding: 2px 6px;
+  margin-left: -6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.tx-variant-a .va-user-attach:hover { background: var(--surface-2); color: var(--text-1); }
+.tx-variant-a .va-user-attach[aria-expanded='true'] { color: var(--text-1); }
+.tx-variant-a .va-user-attach .k { color: var(--text-3); }
+.tx-variant-a .va-user-attach-err { color: var(--red, #f87171); }
+
+.tx-variant-a .va-user-attach-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tx-variant-a .va-attach-item {
+  border: 1px solid var(--border-1);
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: var(--surface-1);
+}
+.tx-variant-a .va-attach-item.is-error {
+  border-color: color-mix(in srgb, var(--red, #f87171) 50%, var(--border-1));
+}
+.tx-variant-a .va-attach-head {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.tx-variant-a .va-attach-head .dot {
+  width: 2px; height: 2px; background: var(--text-disabled); border-radius: 99px;
+}
+.tx-variant-a .va-attach-kind {
+  color: var(--text-2);
+  text-transform: uppercase;
+}
+.tx-variant-a .va-attach-tool {
+  color: var(--accent-2, var(--text-0));
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.tx-variant-a .va-attach-args {
+  color: var(--text-1);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11.5px;
+  max-width: 60ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tx-variant-a .va-attach-tuid { color: var(--text-2); }
+.tx-variant-a .va-attach-err { color: var(--red, #f87171); }
+.tx-variant-a .va-attach-body {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+}
+
+/* Harness-injected "session context" — `deferred_tools_delta` and
+   `skill_listing` attachments anchored to a user prompt. Same compact
+   disclosure pattern as `.va-user-attach` so they read as turn metadata. */
+.tx-variant-a .va-context-group {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tx-variant-a .va-context-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tx-variant-a .va-context-head {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-2);
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  padding: 2px 6px;
+  margin-left: -6px;
+  border-radius: 4px;
+  cursor: pointer;
+  width: max-content;
+  transition: background 120ms ease, color 120ms ease;
+}
+.tx-variant-a .va-context-head:hover { background: var(--surface-2); color: var(--text-1); }
+.tx-variant-a .va-context-head[aria-expanded='true'] { color: var(--text-1); }
+.tx-variant-a .va-context-head .k { color: var(--text-3); }
+.tx-variant-a .va-context-body {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-1);
+  padding: 4px 8px;
+  border-left: 1px solid var(--border-1);
+  background: var(--surface-1);
+  border-radius: 0 4px 4px 0;
+}
+.tx-variant-a .va-context-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+}
+.tx-variant-a .va-context-body .va-delta-add { color: var(--green, #4ade80); }
+.tx-variant-a .va-context-body .va-delta-del { color: var(--red, #f87171); }
+.tx-variant-a .va-context-body .va-delta-readd { color: var(--accent-2, var(--text-1)); }
+
+/* ----- Standalone system-event + attachment rows --------------------------
+ * Interleaved between turn-divider/user-prompt/request rows so the chronology
+ * of harness-emitted state changes (turn duration, compact boundary, away
+ * recap, attachment subtypes) reads alongside the conversation rather than
+ * being hidden in a sidebar.
+ *
+ * Visual: muted secondary surface with a left rail to distinguish from real
+ * conversation rows. Compact, mono-flavoured to match the rest of the
+ * transcript chrome.
+ */
+.tx-variant-a .va-system-event,
+.tx-variant-a .va-attachment {
+  margin: 6px 0 6px 22px;
+  padding: 6px 10px;
+  border-left: 2px solid var(--border-1, var(--surface-3));
+  background: var(--surface-1);
+  border-radius: 0 4px 4px 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* file-history-snapshot row — a one-liner showing Claude Code stashed a
+ * backup of the listed files before editing. We hide the empty session-init
+ * snapshots (see buildRows filter) so each row that renders is a real backup
+ * event tied to a write/edit. */
+.tx-variant-a .va-file-history {
+  margin: 3px 0 3px 22px;
+  padding: 3px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  border-left: 2px solid var(--border-1, var(--surface-3));
+}
+.tx-variant-a .va-file-history-icon {
+  color: var(--text-2);
+}
+.tx-variant-a .va-file-history-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+.tx-variant-a .va-file-history-files {
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+.tx-variant-a .va-system-event-head,
+.tx-variant-a .va-attachment-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+.tx-variant-a .va-system-event-type,
+.tx-variant-a .va-attachment-type {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+.tx-variant-a .va-system-event-ts,
+.tx-variant-a .va-attachment-ts {
+  color: var(--text-3);
+}
+.tx-variant-a .va-system-event-body,
+.tx-variant-a .va-attachment-body {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tx-variant-a .va-system-event-meta,
+.tx-variant-a .va-attachment-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  margin-right: 10px;
+}
+.tx-variant-a .va-system-event-chain {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.tx-variant-a .va-system-event-message,
+.tx-variant-a .va-attachment-snippet,
+.tx-variant-a .va-attachment-listing {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-1);
+  margin: 0;
+}
+.tx-variant-a .va-attachment-listing {
+  max-height: 280px;
+  overflow: auto;
+}
+.tx-variant-a .va-attachment-path {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-2, var(--text-0));
+}
+.tx-variant-a .va-attachment-kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0;
+}
+.tx-variant-a .va-attachment-kv-row {
+  display: contents;
+}
+.tx-variant-a .va-attachment-kv-row dt {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+.tx-variant-a .va-attachment-kv-row dd {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-1);
+  margin: 0;
+  word-break: break-word;
+}
+.tx-variant-a .va-attachment-empty {
+  color: var(--text-3);
+  font-style: italic;
+}
+.tx-variant-a .va-attachment-warn {
+  color: var(--amber);
+}
+.tx-variant-a .va-attachment-path-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tx-variant-a .va-attachment-link {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-2);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.tx-variant-a .va-attachment-link:hover { color: var(--text-0); }
+.tx-variant-a .va-plan-content {
+  margin-top: 4px;
+  max-height: 480px;
+  overflow: auto;
+  background: var(--surface-1);
+  border-left: 2px solid var(--accent-border);
+  padding: 8px 10px;
+  border-radius: 0 4px 4px 0;
+}
+
+/* Single-line state-change chip: replaces the full attachment card for
+ * subtypes whose entire payload fits in a one-word state ("auto mode on",
+ * "plan mode off", etc.). Sits inline with the conversation rather than
+ * carving out its own bordered block. */
+.tx-variant-a .va-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 4px 22px;
+  padding: 2px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+}
+.tx-variant-a .va-attachment-chip-dot { color: var(--text-3); font-size: 8px; }
+.tx-variant-a .va-attachment-chip-label { color: var(--text-1); }
+.tx-variant-a .va-attachment-chip-ts { color: var(--text-3); }
+.tx-variant-a .va-attachment-chip[data-attachment-type="auto_mode"] .va-attachment-chip-dot { color: var(--amber); }
+.tx-variant-a .va-attachment-chip[data-attachment-type="plan_mode_reentry"] .va-attachment-chip-dot { color: var(--cyan); }
+.tx-variant-a .va-delta-line { font-family: var(--font-mono); font-size: 12px; }
+.tx-variant-a .va-delta-add { color: var(--green, #4ade80); }
+.tx-variant-a .va-delta-del { color: var(--red, #f87171); }
+.tx-variant-a .va-delta-readd { color: var(--accent-2, var(--text-1)); }
+
+/* Compact boundary is the loudest of the system events — give it a clearer
+ * boundary so the visual matches its narrative importance. */
+.tx-variant-a .va-system-event[data-subtype="compact_boundary"] {
+  border-left-color: var(--accent-2, var(--text-1));
+  background: var(--surface-2);
+}
+/* Mute turn_duration since it shows on every turn and should fade into the
+ * background unless the reader is looking for it. */
+.tx-variant-a .va-system-event[data-subtype="turn_duration"] {
+  background: transparent;
+  border-left-color: transparent;
+  padding: 2px 10px;
+  color: var(--text-3);
+}
+.tx-variant-a .va-system-event[data-subtype="turn_duration"] .va-system-event-type {
+  display: none;
+}
+.tx-variant-a .va-system-event[data-subtype="turn_duration"] .va-system-event-ts {
+  display: none;
+}
+
+/* ----- Sticky-state badges (007 T040) -------------------------------------
+ * Permission-mode + model + plan/auto/worktree badges in the user-prompt cap.
+ * Colours mirror Claude Code's native statusline palette so the viewer reads
+ * as a familiar second window into the same session state.
+ *   acceptEdits → violet (matches `accept edits on`)
+ *   auto        → amber  (matches `auto mode on`)
+ *   plan        → cyan   (matches `plan mode on`)
+ *   default     → muted  (no signal — harness is in normal mode)
+ *   model       → soft accent
+ *   worktree    → soft amber (distinct from auto so they can coexist)
+ */
+.tx-variant-a .va-sticky {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+.tx-variant-a .va-sticky[data-kind="permission"][data-value="acceptEdits"] { color: var(--violet); }
+.tx-variant-a .va-sticky[data-kind="permission"][data-value="auto"]        { color: var(--amber); }
+.tx-variant-a .va-sticky[data-kind="permission"][data-value="plan"]        { color: var(--cyan); }
+.tx-variant-a .va-sticky[data-kind="permission"][data-value="default"]     { color: var(--text-3); }
+.tx-variant-a .va-sticky[data-kind="plan"]      { color: var(--cyan); }
+.tx-variant-a .va-sticky[data-kind="auto"]      { color: var(--amber); }
+.tx-variant-a .va-sticky[data-kind="model"]     { color: var(--accent-2); }
+.tx-variant-a .va-sticky[data-kind="worktree"]  { color: var(--green); }
+
+/* ----- Request / Harness group ----- */
+.tx-variant-a .va-req-group { margin: 0 0 22px; }
+
+.tx-variant-a .va-request,
+.tx-variant-a .va-harness {
+  display: grid; grid-template-columns: 16px 1fr; gap: 0;
+  cursor: pointer;
+}
+
+.tx-variant-a .va-rail {
+  align-self: stretch;
+  margin-top: 2px;
+  margin-bottom: 2px;
+  width: 2px;
+  border-radius: 1px;
+  transition: width 120ms ease, opacity 120ms ease, border-color 120ms ease;
+}
+.tx-variant-a .va-rail-req {
+  background: var(--accent);
+  opacity: 0.85;
+}
+
+/* Clickable [Image #N] placeholder inside user-prompt text — opens the
+   image-cache file at /api/sessions/<id>/images/<N> in the lightbox overlay. */
+.tx-variant-a .va-image-chip {
+  display: inline;
+  padding: 0 4px;
+  margin: 0 1px;
+  border-radius: 3px;
+  border: 1px solid var(--accent-border, var(--border-2));
+  background: var(--accent-softer, var(--surface-2));
+  color: var(--accent-2, var(--text-0));
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.tx-variant-a .va-image-chip:hover {
+  background: var(--accent-soft, var(--surface-3));
+  color: var(--text-0);
+}
+
+/* Slash-command envelope (`<command-name>/clear</command-name>...`) — render
+   like the CC terminal: plain mono text in accent color, no border/box. */
+.tx-variant-a .va-slash-cmd {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.tx-variant-a .va-slash-cmd-name {
+  color: var(--accent-2, var(--text-0));
+}
+.tx-variant-a .va-slash-cmd-args {
+  color: var(--text-1);
+  margin-left: 6px;
+}
+
+/* Compact-mode "final answer" row — single text body under a prompt with no
+   REQ/HARNESS scaffolding around it. */
+.tx-variant-a .va-final-answer {
+  display: grid; grid-template-columns: 16px 1fr; gap: 0;
+  margin: 4px 0 18px;
+}
+.tx-variant-a .va-final-answer .va-rail {
+  margin-top: 2px;
+  margin-bottom: 2px;
+  width: 2px;
+  border-radius: 1px;
+}
+.tx-variant-a .va-final-answer-body {
+  padding: 2px 0;
+  white-space: pre-wrap;
+  font-size: 13px;
+  color: var(--text-0);
+  line-height: 1.55;
+  min-width: 0;
+}
+.tx-variant-a .va-rail-har {
+  background: transparent;
+  border-left: 2px dashed var(--text-disabled);
+  width: 0;
+  opacity: 0.85;
+}
+
+/* Focus state — brighten the rail. No layout shift; rail lives in its 16px gutter. */
+.tx-variant-a .va-user.is-focused .va-user-rail,
+.tx-variant-a .va-request.is-focused .va-rail-req,
+.tx-variant-a .va-harness.is-focused .va-rail-har {
+  width: 3px;
+  opacity: 1;
+}
+.tx-variant-a .va-harness.is-focused .va-rail-har {
+  border-style: solid;
+  border-color: var(--text-2);
+}
+/* Hover — half-step, doesn't commit. */
+.tx-variant-a .va-user:hover .va-user-rail,
+.tx-variant-a .va-request:hover .va-rail-req,
+.tx-variant-a .va-harness:hover .va-rail-har { opacity: 0.95; }
+
+.tx-variant-a .va-req-body,
+.tx-variant-a .va-har-body {
+  padding: 0 0 6px 0;
+  min-width: 0;
+}
+
+/* Single mono caption shared by REQ / HARNESS / YOU bodies. */
+.tx-variant-a .va-cap {
+  display: flex; align-items: baseline;
+  gap: 0;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  padding: 2px 0 10px;
+}
+.tx-variant-a .va-cap > .seg { white-space: nowrap; }
+.tx-variant-a .va-cap > .sep {
+  color: var(--text-disabled);
+  margin: 0 8px;
+}
+.tx-variant-a .va-cap > .req-k { color: var(--text-0); font-weight: 600; }
+.tx-variant-a .va-cap > .req-id { color: var(--text-2); }
+.tx-variant-a .va-cap > .cost { margin-left: auto; color: var(--text-1); font-weight: 500; }
+
+.tx-variant-a .va-cap-har { color: var(--text-2); }
+.tx-variant-a .va-cap-har .trail {
+  margin-left: 10px; color: var(--text-disabled); font-style: italic; letter-spacing: 0;
+}
+
+/* ----- Assistant blocks (no kind tags) ----- */
+.tx-variant-a .va-think {
+  color: var(--text-2);
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 4px 0 8px 0;
+  white-space: pre-wrap;
+}
+.tx-variant-a .va-text {
+  color: var(--text-0);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 4px 0 8px 0;
+  white-space: pre-wrap;
+}
+.tx-variant-a .va-text code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* tool_use call line in REQ. */
+.tx-variant-a .va-call {
+  display: flex; align-items: baseline; gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 4px 0;
+  border-radius: 3px;
+}
+
+/* ExitPlanMode plan content. The plan IS the assistant's payload here — render
+ * the full markdown body beneath the one-line call so the reader actually sees
+ * what was proposed. Inherits .va-md typography. */
+.tx-variant-a .va-plan-body {
+  margin: 2px 0 8px 20px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--accent-border);
+  background: var(--accent-softer);
+  border-radius: 0 4px 4px 0;
+  color: var(--text-1);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.tx-variant-a .va-call .arrow { color: var(--accent-2); font-weight: 600; }
+.tx-variant-a .va-call .name { color: var(--text-0); font-weight: 600; }
+.tx-variant-a .va-call .arg {
+  color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; flex: 1;
+}
+
+/* tool_result line in HARNESS + body. */
+.tx-variant-a .va-result { padding: 4px 0 12px; border-radius: 3px; }
+.tx-variant-a .va-result-head {
+  display: flex; align-items: baseline; gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 2px 0 6px;
+}
+.tx-variant-a .va-result-head .arrow { color: var(--text-2); font-weight: 600; }
+.tx-variant-a .va-result-head .name { color: var(--text-0); font-weight: 600; }
+.tx-variant-a .va-result-head .arg {
+  color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; flex: 1;
+}
+.tx-variant-a .va-result-head .dur { color: var(--text-3); font-size: 11px; }
+.tx-variant-a .va-result-head .st {
+  font-size: 10px; padding: 1px 6px; border-radius: 99px; font-weight: 500;
+}
+.tx-variant-a .va-result-head .st.ok { color: var(--green); background: var(--green-soft); }
+.tx-variant-a .va-result-head .st.err { color: var(--red); background: var(--red-soft); }
+.tx-variant-a .va-result-head .st.run { color: var(--accent-2); background: var(--accent-soft); }
+.tx-variant-a .va-result-head .st.cancelled { color: var(--amber); background: var(--amber-soft); }
+
+/* Cancelled tools — muted look + an inline "cancelled" pill so the reader
+ * sees instantly that the tool was interrupted (not failed). */
+.tx-variant-a .va-call[data-status="cancelled"] .name { color: var(--text-1); }
+.tx-variant-a .va-call[data-status="cancelled"] .arg { color: var(--text-3); text-decoration: line-through; }
+.tx-variant-a .va-tool-cancelled {
+  font-size: 10px;
+  color: var(--amber);
+  background: var(--amber-soft);
+  padding: 1px 6px;
+  border-radius: 99px;
+  font-weight: 500;
+}
+
+/* Synthetic CLI API-error capsule. The assistant row was tagged
+ * `isApiErrorMessage: true` — the LLM never produced this content; the CLI
+ * wrote a placeholder error message into the JSONL. The whole REQ envelope
+ * gets a red-soft tint so the reader doesn't mistake it for a real reply. */
+.tx-variant-a .va-request[data-api-error="true"] {
+  border-color: var(--red);
+  background: var(--red-soft);
+}
+.tx-variant-a .va-api-error-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--red);
+  background: var(--red-soft);
+  padding: 1px 6px;
+  border-radius: 99px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* Retry — applied when this tool_use follows an earlier same-tool failure in
+ * the same Turn (e.g. Read with a corrected path after the first one errored).
+ * Same pill shape as cancelled, but cyan so it reads as informational, not
+ * destructive. */
+.tx-variant-a .va-tool-retry {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent-2);
+  background: var(--accent-soft);
+  padding: 1px 6px;
+  border-radius: 99px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.tx-variant-a .va-call[data-retry="true"] .name,
+.tx-variant-a .va-result[data-retry="true"] .name {
+  color: var(--accent-2);
+}
+
+/* Focused block — subtle tint on the line. Layout-stable. */
+.tx-variant-a .va-call.is-focused,
+.tx-variant-a .va-result.is-focused {
+  background: var(--accent-softer);
+}
+
+/* Diff body (mounted inside .va-result). */
+.tx-variant-a .va-diff {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.tx-variant-a .va-diff-meta {
+  display: flex; gap: 10px; align-items: baseline;
+  font-size: 10.5px;
+  color: var(--text-3);
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+}
+.tx-variant-a .va-diff-meta .path { color: var(--text-2); }
+.tx-variant-a .va-diff-meta .lang { color: var(--text-3); }
+.tx-variant-a .va-diff-meta .add { color: var(--green); }
+.tx-variant-a .va-diff-meta .del { color: var(--red); }
+
+.tx-variant-a .va-preview {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  background: var(--surface-1);
+  padding: 8px 10px;
+  margin: 4px 0 0;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Error / cancelled tool output — tinted left border picks up the status
+ * colour from the head pill so failures are visually distinct. */
+.tx-variant-a .va-preview[data-status="err"],
+.tx-variant-a .va-preview[data-status="cancelled"] {
+  color: var(--text-1);
+  border-left: 2px solid var(--red);
+}
+.tx-variant-a .va-preview[data-status="cancelled"] {
+  border-left-color: var(--amber);
+}
+
+/* Shared diff line renderer — 3-col grid (line-no | marker | source).
+   No max-height: long diffs grow inline so the outer Virtuoso scroller (not a
+   nested clipped pane) handles them. */
+.tx-variant-a .shared-diff-body {
+  font-family: var(--font-mono);
+  padding: 4px 0;
+  position: relative;
+}
+.tx-variant-a .shared-diff-body.dense .sdl { line-height: 1.45; padding: 0; }
+.tx-variant-a .shared-diff-body .sdl {
+  display: grid;
+  grid-template-columns: 36px 18px 1fr;
+  font-size: 11px;
+}
+.tx-variant-a .shared-diff-body .sdl .ln {
+  text-align: right;
+  color: var(--text-disabled);
+  padding: 0 6px 0 8px;
+  user-select: none;
+  font-size: 10px;
+}
+.tx-variant-a .shared-diff-body .sdl .mk {
+  text-align: center; user-select: none; color: var(--text-disabled);
+}
+.tx-variant-a .shared-diff-body .sdl .src {
+  white-space: pre;
+  padding: 0 8px;
+  color: var(--text-0);
+  overflow-x: hidden;
+}
+.tx-variant-a .shared-diff-body .sdl.add { background: var(--diff-add-bg); }
+.tx-variant-a .shared-diff-body .sdl.add .src { color: var(--diff-add-fg); }
+.tx-variant-a .shared-diff-body .sdl.add .mk { color: var(--diff-add-fg); }
+.tx-variant-a .shared-diff-body .sdl.del { background: var(--diff-del-bg); }
+.tx-variant-a .shared-diff-body .sdl.del .src { color: var(--diff-del-fg); }
+.tx-variant-a .shared-diff-body .sdl.del .mk { color: var(--diff-del-fg); }
+.tx-variant-a .shared-diff-body .sdl.hunk {
+  grid-template-columns: 1fr;
+  color: var(--text-3);
+  font-size: 10px;
+  padding: 4px 10px;
+  background: var(--surface-2);
+}
+
+/* =========================================================================
+   Structured toolUseResult sidecar (007-ui-information-revamp)
+   ========================================================================= */
+
+/* Disclosure wrapper that hosts the structured payload below a tool result. */
+.tx-variant-a .va-tool-sidecar {
+  margin: 6px 0 0;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.tx-variant-a .va-tool-sidecar > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 11px;
+  user-select: none;
+  border-radius: 4px;
+}
+.tx-variant-a .va-tool-sidecar > summary::-webkit-details-marker { display: none; }
+.tx-variant-a .va-tool-sidecar > summary:hover { background: var(--surface-2); }
+.tx-variant-a .va-tool-sidecar-icon {
+  display: inline-block;
+  transition: transform 0.12s ease;
+  color: var(--text-3);
+}
+.tx-variant-a .va-tool-sidecar[open] > summary > .va-tool-sidecar-icon {
+  transform: rotate(90deg);
+}
+.tx-variant-a .va-tool-sidecar-label {
+  color: var(--text-1);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.tx-variant-a .va-tool-sidecar-body {
+  padding: 6px 10px 10px;
+  border-top: 1px solid var(--border);
+}
+.tx-variant-a .va-tool-sidecar-body .va-diff,
+.tx-variant-a .va-tool-sidecar-body .va-structured-patch .va-diff {
+  margin-top: 0;
+}
+
+/* Key/value table for variants without a specialist component. */
+.tx-variant-a .va-tool-sidecar-kv {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(110px, max-content) 1fr;
+  gap: 2px 12px;
+  align-items: baseline;
+}
+.tx-variant-a .va-tool-sidecar-kv dt {
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.tx-variant-a .va-tool-sidecar-kv dd {
+  margin: 0;
+  color: var(--text-1);
+  min-width: 0;
+  word-break: break-word;
+}
+.tx-variant-a .va-tool-sidecar-value {
+  color: var(--text-0);
+}
+.tx-variant-a .va-tool-sidecar-muted {
+  color: var(--text-disabled);
+  font-style: italic;
+}
+.tx-variant-a .va-tool-sidecar-text {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  background: var(--surface-2);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-1);
+  white-space: pre-wrap;
+  max-height: 14em;
+  overflow: auto;
+}
+
+/* Subagent rollup card (BlockAgentRollup, expanded mode). */
+.tx-variant-a .va-agent-rollup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tx-variant-a .va-agent-rollup-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+}
+.tx-variant-a .va-agent-rollup-head .sep { color: var(--text-disabled); }
+.tx-variant-a .va-agent-rollup-type {
+  color: var(--accent-2);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.tx-variant-a .va-agent-rollup-head .status {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+.tx-variant-a .va-agent-rollup-grid {
+  display: grid;
+  grid-template-columns: minmax(90px, max-content) 1fr;
+  gap: 2px 12px;
+  margin: 0;
+}
+.tx-variant-a .va-agent-rollup-grid dt {
+  color: var(--text-3);
+  font-size: 10.5px;
+}
+.tx-variant-a .va-agent-rollup-grid dd {
+  margin: 0;
+  color: var(--text-0);
+}
+
+/* Subagent rollup chip (BlockAgentRollup, chip mode — shown on REQ-side call). */
+.tx-variant-a .va-agent-rollup-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: var(--accent-soft);
+  color: var(--text-1);
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.tx-variant-a .va-agent-rollup-chip .va-agent-rollup-type {
+  font-size: 10.5px;
+  color: var(--accent-2);
+}
+.tx-variant-a .va-agent-rollup-chip .sep { color: var(--text-disabled); }
+
+/* AskUserQuestion answers (BlockAskUserQuestion). */
+.tx-variant-a .va-ask-user-question {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tx-variant-a .va-aqu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--surface-2);
+  border-radius: 3px;
+}
+.tx-variant-a .va-aqu-header {
+  color: var(--text-3);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tx-variant-a .va-aqu-question {
+  color: var(--text-0);
+  font-weight: 500;
+  white-space: pre-wrap;
+}
+.tx-variant-a .va-aqu-options {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tx-variant-a .va-aqu-option {
+  color: var(--text-2);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 2px;
+}
+.tx-variant-a .va-aqu-option.is-selected {
+  background: var(--accent-soft);
+  color: var(--text-0);
+  font-weight: 500;
+}
+.tx-variant-a .va-aqu-option .label { color: var(--text-1); }
+.tx-variant-a .va-aqu-option .desc { color: var(--text-3); }
+.tx-variant-a .va-aqu-answer {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-1);
+}
+.tx-variant-a .va-aqu-answer-label {
+  color: var(--text-3);
+  margin-right: 4px;
+}
+.tx-variant-a .va-aqu-answer-value {
+  color: var(--text-0);
+  font-weight: 500;
+}
+.tx-variant-a .va-aqu-annotation > summary {
+  cursor: pointer;
+  color: var(--text-3);
+  font-size: 10.5px;
+}
+.tx-variant-a .va-aqu-annotation pre {
+  margin: 4px 0 0;
+  padding: 4px 8px;
+  background: var(--surface-1);
+  font-size: 10.5px;
+  color: var(--text-2);
+  max-height: 12em;
+  overflow: auto;
+}
+
+/* BlockStructuredPatch wrapper — diff body inherits from .va-diff styling. */
+.tx-variant-a .va-structured-patch {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* BlockImage (standalone — currently unused in transcript path, kept ready for follow-up). */
+.tx-variant-a .va-image {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0;
+}
+.tx-variant-a .va-image-thumb {
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  cursor: zoom-in;
+  background: var(--surface-2);
+}
+.tx-variant-a .va-image-caption {
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+.tx-variant-a .va-image-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  color: var(--text-2);
+  font-size: 11px;
+  cursor: zoom-in;
+  font-family: inherit;
+}
+.tx-variant-a .va-image-placeholder-icon { font-size: 14px; }
+.tx-variant-a .va-image-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.86);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  cursor: zoom-out;
+  padding: 24px;
+}
+.tx-variant-a .va-image-full {
+  max-width: 100%;
+  max-height: calc(100% - 32px);
+  object-fit: contain;
 }

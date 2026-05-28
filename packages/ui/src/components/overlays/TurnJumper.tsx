@@ -137,13 +137,14 @@ export function TurnJumper({ onPick }: TurnJumperProps) {
                 }}
                 className="jumper-row grid cursor-pointer items-center gap-[10px] border-l-2 px-[14px] py-[8px]"
                 style={{
-                  gridTemplateColumns: '56px 1fr auto',
+                  gridTemplateColumns: '72px 1fr auto',
                   borderLeftColor: isActive ? 'var(--accent)' : 'transparent',
                   background: isActive ? 'var(--surface-2)' : 'transparent',
                 }}
               >
-                <div className="id font-mono text-[11px] text-[var(--text-0)]">
-                  {t.id}
+                <div className="id font-mono text-[var(--text-0)]">
+                  <span className="text-[13px] tabular-nums">{i + 1}</span>
+                  <span className="ml-1.5 text-[10.5px] text-[var(--text-3)]">{t.id.slice(0, 8)}</span>
                   <span className="time block text-[10px] text-[var(--text-3)]">{fmtRelativeTime(t.time)}</span>
                 </div>
                 <div

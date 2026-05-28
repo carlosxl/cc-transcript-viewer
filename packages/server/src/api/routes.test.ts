@@ -389,3 +389,216 @@ describe('Search API routes (Phase 4)', () => {
     expect(res.status).toBe(503)
   })
 })
+
+describe('GET /api/sessions/:id/tool-results/:filename (007 — FR-013)', () => {
+  let projectsDir: string
+  let app: import('hono').Hono
+  const sessionId = 'real-session'
+  const validBlobName = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.txt'
+
+  beforeEach(() => {
+    projectsDir = join(tmpdir(), `cc-viewer-tr-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    const projectDir = join(projectsDir, '-Users-test-p')
+    mkdirSync(join(projectDir, sessionId, 'tool-results'), { recursive: true })
+    writeFileSync(join(projectDir, `${sessionId}.jsonl`), '{"type":"user","sessionId":"real-session","message":{"role":"user","content":"hi"}}\n', 'utf8')
+    writeFileSync(join(projectDir, sessionId, 'tool-results', validBlobName), 'persisted bash output line 1\nline 2\n', 'utf8')
+    const ctx = createApp({ port: 7823, projectsDir, env: 'test', version: '0.1.0' })
+    app = ctx.app
+  })
+
+  afterEach(() => {
+    rmSync(projectsDir, { recursive: true, force: true })
+  })
+
+  it('streams the blob with text/plain + private cache header', async () => {
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/sessions/${sessionId}/tool-results/${validBlobName}`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toContain('text/plain')
+    expect(res.headers.get('Cache-Control')).toBe('private, max-age=86400')
+    expect(await res.text()).toBe('persisted bash output line 1\nline 2\n')
+  })
+
+  it('returns 400 invalid-filename for non-UUID names', async () => {
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/sessions/${sessionId}/tool-results/not-a-uuid.txt`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'invalid-filename' })
+  })
+
+  it('returns 400 invalid-filename for non-.txt extensions', async () => {
+    const name = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.bin'
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/sessions/${sessionId}/tool-results/${name}`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 404 missing-blob when the file does not exist', async () => {
+    const ghost = 'ffffffff-1111-2222-3333-444444444444.txt'
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/sessions/${sessionId}/tool-results/${ghost}`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: 'missing-blob' })
+  })
+
+  it('returns 404 not-found for unsafe sessionId', async () => {
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/sessions/.hidden/tool-results/${validBlobName}`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: 'not-found' })
+  })
+})
+
+describe('GET /api/sessions/:id/file-history/:backupFileName (007 — FR-014)', () => {
+  let projectsDir: string
+  let fileHistoryRoot: string
+  let app: import('hono').Hono
+  const sessionId = 'real-session'
+  const backupName = 'abcdef12@v3'
+
+  beforeEach(() => {
+    projectsDir = join(tmpdir(), `cc-viewer-fh-pd-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    fileHistoryRoot = join(tmpdir(), `cc-viewer-fh-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    const projectDir = join(projectsDir, '-Users-test-p')
+    mkdirSync(projectDir, { recursive: true })
+    writeFileSync(join(projectDir, `${sessionId}.jsonl`), '{"type":"user","sessionId":"real-session","message":{"role":"user","content":"hi"}}\n', 'utf8')
+    mkdirSync(join(fileHistoryRoot, sessionId), { recursive: true })
+    writeFileSync(join(fileHistoryRoot, sessionId, backupName), 'backup contents v3\n', 'utf8')
+    const ctx = createApp({ port: 7823, projectsDir, env: 'test', version: '0.1.0', fileHistoryRoot })
+    app = ctx.app
+  })
+
+  afterEach(() => {
+    rmSync(projectsDir, { recursive: true, force: true })
+    rmSync(fileHistoryRoot, { recursive: true, force: true })
+  })
+
+  it('streams the backup blob with octet-stream + private cache header', async () => {
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/sessions/${sessionId}/file-history/${backupName}`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('application/octet-stream')
+    expect(res.headers.get('Cache-Control')).toBe('private, max-age=86400')
+    expect(await res.text()).toBe('backup contents v3\n')
+  })
+
+  it('returns 400 invalid-filename for slashes', async () => {
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/sessions/${sessionId}/file-history/${encodeURIComponent('..%2Fetc%2Fpasswd')}`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 404 missing-backup when the file does not exist', async () => {
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/sessions/${sessionId}/file-history/ghost@v9`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: 'missing-backup' })
+  })
+
+  it('returns 404 not-found for unsafe sessionId', async () => {
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/sessions/.hidden/file-history/${backupName}`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: 'not-found' })
+  })
+})
+
+describe('GET /api/plans', () => {
+  let projectsDir: string
+  let plansRoot: string
+  let app: import('hono').Hono
+  const validBasename = 'add-a-console-log-to-foo.md'
+
+  beforeEach(() => {
+    projectsDir = join(tmpdir(), `cc-viewer-plans-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    plansRoot = join(tmpdir(), `cc-viewer-plans-root-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    mkdirSync(join(projectsDir, '-Users-test-p'), { recursive: true })
+    writeFileSync(join(projectsDir, '-Users-test-p', 'real-session.jsonl'), '{"type":"user","sessionId":"real-session","message":{"role":"user","content":"hi"}}\n', 'utf8')
+    mkdirSync(plansRoot, { recursive: true })
+    writeFileSync(join(plansRoot, validBasename), '# Plan\n\n- Step 1\n- Step 2\n', 'utf8')
+    const ctx = createApp({ port: 7823, projectsDir, env: 'test', version: '0.1.0', plansRoot })
+    app = ctx.app
+  })
+
+  afterEach(() => {
+    rmSync(projectsDir, { recursive: true, force: true })
+    rmSync(plansRoot, { recursive: true, force: true })
+  })
+
+  it('returns the plan content for a valid path inside plansRoot', async () => {
+    const path = join(plansRoot, validBasename)
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/plans?path=${encodeURIComponent(path)}`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(200)
+    const body = await res.json() as { path: string; content: string }
+    expect(body.path).toBe(path)
+    expect(body.content).toBe('# Plan\n\n- Step 1\n- Step 2\n')
+  })
+
+  it('rejects paths outside plansRoot with 400', async () => {
+    const outside = join(projectsDir, 'evil.md')
+    writeFileSync(outside, '# nope\n', 'utf8')
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/plans?path=${encodeURIComponent(outside)}`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: { code: 'INVALID_PATH', message: 'Path outside plans root' } })
+  })
+
+  it('rejects relative paths with 400', async () => {
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/plans?path=relative/plan.md`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects non-.md paths with 400', async () => {
+    const path = join(plansRoot, 'not-a-plan.txt')
+    writeFileSync(path, 'nope', 'utf8')
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/plans?path=${encodeURIComponent(path)}`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 404 for missing plan files', async () => {
+    const path = join(plansRoot, 'does-not-exist.md')
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/plans?path=${encodeURIComponent(path)}`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(404)
+  })
+
+  it('rejects path traversal attempts that resolve outside plansRoot', async () => {
+    const traversal = join(plansRoot, '..', 'evil.md')
+    const res = await app.fetch(new Request(
+      `${ORIGIN}/api/plans?path=${encodeURIComponent(traversal)}`,
+      { headers: { Origin: ORIGIN } },
+    ))
+    expect(res.status).toBe(400)
+  })
+})

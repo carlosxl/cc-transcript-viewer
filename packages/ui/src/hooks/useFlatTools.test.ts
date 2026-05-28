@@ -14,8 +14,8 @@ describe('useFlatTools', () => {
   it('emits both tool_use and diff blocks across all requests, in document order', () => {
     const { result } = renderHook(() => useFlatTools(view))
     const kinds = result.current.map((it) => it.block.kind)
-    // Bash (tool_use), Agent (tool_use), Edit (diff)
-    expect(kinds).toEqual(['tool_use', 'tool_use', 'diff'])
+    // Bash (tool_use), Agent (tool_use), Edit (tool_use + paired diff)
+    expect(kinds).toEqual(['tool_use', 'tool_use', 'tool_use', 'diff'])
   })
 
   it('binds each item back to its owning request and turn', () => {

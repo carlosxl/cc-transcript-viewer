@@ -197,5 +197,6 @@ export function buildMultiTurnDetail(): SessionDetailResponse {
     ],
     tokenSeries: { points: [], byModel: [], spikes: [], cacheHitPct: 0, avgPerTurn: 0 },
     fileTouchIndex: { files: [] },
+    rows: [],
   }
 }

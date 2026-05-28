@@ -13,6 +13,8 @@ export function SubagentCta({ metrics, onClick }: SubagentCtaProps) {
   const tools = metrics?.toolCallCount ?? 0
   const cost = metrics?.cost ?? 0
   const disabled = !metrics
+  const agentType = metrics?.agentType
+  const description = metrics?.description
   return (
     <button
       type="button"
@@ -22,11 +24,23 @@ export function SubagentCta({ metrics, onClick }: SubagentCtaProps) {
         onClick?.(e)
       }}
       disabled={disabled}
-      className="sa-cta flex w-full items-center justify-between border-t border-[var(--border)] bg-[var(--accent-softer)] px-[11px] py-[8px] text-left font-mono text-[11px] text-[var(--accent-2)] transition-colors hover:bg-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
+      className="sa-cta flex w-full items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--accent-softer)] px-[11px] py-[8px] text-left font-mono text-[11px] text-[var(--accent-2)] transition-colors hover:bg-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-60"
     >
-      <span className="sa-cta-text inline-flex items-center gap-1.5 font-medium">
+      <span className="sa-cta-text inline-flex min-w-0 flex-1 items-center gap-1.5 font-medium">
         <I.agent />
-        <span>Open subagent transcript</span>
+        {agentType ? (
+          <span className="min-w-0 truncate">
+            <span>{agentType}</span>
+            {description && (
+              <>
+                <span className="px-1 text-[var(--text-disabled)]">·</span>
+                <span className="font-normal text-[var(--text-1)]">{description}</span>
+              </>
+            )}
+          </span>
+        ) : (
+          <span>Open subagent transcript</span>
+        )}
       </span>
       <span className="sa-stats inline-flex items-center gap-1.5 text-[var(--text-2)]">
         <span>

@@ -4,12 +4,10 @@ import type { Theme, Density } from '@/lib/types'
 interface WorkspaceState {
   theme: Theme
   density: Density
-  inspectorOpen: boolean
   setTheme: (t: Theme) => void
   setDensity: (d: Density) => void
   toggleTheme: () => void
   toggleDensity: () => void
-  toggleInspector: () => void
 }
 
 /**
@@ -19,10 +17,8 @@ interface WorkspaceState {
 export const useWorkspace = create<WorkspaceState>((set) => ({
   theme: 'dark',
   density: 'comfortable',
-  inspectorOpen: true,
   setTheme: (theme) => set({ theme }),
   setDensity: (density) => set({ density }),
   toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
   toggleDensity: () => set((s) => ({ density: s.density === 'comfortable' ? 'compact' : 'comfortable' })),
-  toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
 }))

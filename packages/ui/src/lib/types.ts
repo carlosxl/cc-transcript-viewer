@@ -12,6 +12,7 @@ import type {
   ToolResult,
   SubagentRef,
   ToolInteraction,
+  AttachmentRow,
   SessionMeta,
   Session,
   SessionsListResponse,
@@ -32,6 +33,11 @@ import type {
   AggregatedUsage,
   HealthResponse,
   ErrorResponse,
+  ClaudeRow,
+  ClaudeRowOrUnknown,
+  UnknownRow,
+  ToolUseResult,
+  StickyState,
 } from '@cc-viewer/shared'
 
 export type {
@@ -40,6 +46,7 @@ export type {
   ToolResult,
   SubagentRef,
   ToolInteraction,
+  AttachmentRow,
   SessionMeta,
   Session,
   SessionsListResponse,
@@ -60,6 +67,11 @@ export type {
   AggregatedUsage,
   HealthResponse,
   ErrorResponse,
+  ClaudeRow,
+  ClaudeRowOrUnknown,
+  UnknownRow,
+  ToolUseResult,
+  StickyState,
 }
 
 // ─── Workspace primitives ──────────────────────────────────────────────────
@@ -79,7 +91,7 @@ export interface ThinkingBlock {
   body: string
 }
 
-export type ToolStatus = 'ok' | 'err' | 'run'
+export type ToolStatus = 'ok' | 'err' | 'run' | 'cancelled'
 
 /** Aggregated counts for the in-capsule "Open subagent transcript" CTA. */
 export interface SubagentMetrics {
@@ -90,6 +102,13 @@ export interface SubagentMetrics {
   toolCallCount: number
   /** Sum of per-request cost across the subagent's assistant turns. */
   cost: number
+  /**
+   * Free-form description of the subagent's task, sourced from the
+   * `.meta.json` sidecar (typically the parent's `Agent` tool input
+   * `description`). Surfaced on the capsule so the reader sees what the
+   * subagent was asked to do before drilling in.
+   */
+  description?: string
 }
 
 export interface ToolBlock {
@@ -111,6 +130,18 @@ export interface ToolBlock {
   subagentRef?: string
   /** Populated when isSubagent is true and SubagentRef is available. */
   subagentMetrics?: SubagentMetrics
+  /**
+   * Schema-typed sidecar from the matching user row's `toolUseResult`
+   * (007-ui-information-revamp, T028/T029). The discriminator is the field
+   * set present on the value; components dispatch on shape.
+   */
+  toolUseResult?: ToolUseResult
+  /**
+   * Set when an earlier tool_use within the same Turn used the same tool name
+   * and ended with status='err'. Points at that prior `toolUseId`. Lets the UI
+   * tag this call as a retry of a previous failure (e.g. Read after a bad path).
+   */
+  retryOf?: string
 }
 
 export interface DiffHunkLine {
@@ -136,8 +167,15 @@ export type Block = TextBlock | ThinkingBlock | ToolBlock | DiffBlock
 // ─── Request, Attachment, SessionTurn, SessionView ─────────────────────────
 
 export interface Request {
-  /** assistant turn uuid */
+  /** assistant turn uuid — stable identity used by focus + keyboard nav */
   id: string
+  /**
+   * Anthropic API request id without the `req_` prefix, when available. Used
+   * for the visible "REQ X · <chunk>" chip so the label reflects the upstream
+   * API call rather than whichever JSONL row was written first. Falls back to
+   * the first 8 chars of `id` for legacy rows without a requestId.
+   */
+  displayId: string
   /** ms, sum of block durations or wall-clock */
   duration: number
   /** ms, first-token-time. null when missing. */
@@ -152,6 +190,12 @@ export interface Request {
     cr: number
   }
   model: string
+  /**
+   * True when the underlying assistant row was tagged `isApiErrorMessage` —
+   * a SYNTHETIC error written by the Claude Code CLI itself (e.g. "API Error:
+   * 529 Overloaded"). Renders as a distinct error capsule, not normal output.
+   */
+  isApiError?: boolean
 }
 
 export interface Attachment {
@@ -160,6 +204,16 @@ export interface Attachment {
   ts: string
   /** estimated input-token count */
   tokens: number
+  /** Source tool_use_id when kind === 'tool_result'. */
+  toolUseId?: string
+  /** True when the tool_result was flagged as an error response. */
+  isError?: boolean
+  /** Full text body of the attachment (joined from content array if needed). */
+  body?: string
+  /** Name of the tool that produced this attachment (e.g. "Read", "Bash"). */
+  toolName?: string
+  /** One-line argument summary for the originating tool_use (per getToolArgSummary). */
+  toolArgs?: string
 }
 
 export interface SessionTurn {
@@ -171,6 +225,37 @@ export interface SessionTurn {
   requests: Request[]
   /** aggregated cost across requests; derived */
   cost: number
+  /**
+   * Source row's `promptId` (007-ui-information-revamp). Stable across all
+   * rows that share this Turn; absent on synthesised orphan turns.
+   */
+  promptId?: string
+  /**
+   * Snapshot of harness state in effect at this Turn (permission mode, model,
+   * worktree, plan/auto). Populated by projectSessionView via the shared
+   * sticky-state projection. Falls back to DEFAULT_STICKY_STATE shape when no
+   * preceding row carried a value.
+   */
+  sticky?: StickyState
+  /**
+   * Harness-injected context attachments anchored to this turn — the LLM
+   * actually receives this payload on the API request that resolves this
+   * prompt. Currently surfaces `deferred_tools_delta` (tool catalogue updates)
+   * and `skill_listing` (skill descriptions injected into the system prompt).
+   * Other attachment subtypes drive harness state through other projections
+   * (e.g. auto_mode → sticky badge) and are intentionally not duplicated here.
+   */
+  contextAttachments?: AttachmentRow[]
+  /**
+   * True when the underlying user row is the synthetic `/compact` summary
+   * (the LLM-generated recap of the pre-compact conversation). UserPrompt
+   * renders this as a collapsible disclosure rather than a regular prompt.
+   */
+  isCompactSummary?: boolean
+  /** Total turn duration from the trailing `turn_duration` system event. */
+  durationMs?: number
+  /** Total message count for this turn from the `turn_duration` system event. */
+  messageCount?: number
 }
 
 export interface SessionView {
@@ -183,6 +268,12 @@ export interface SessionView {
   parentTurnId?: string
   parentSessionTitle?: string
   turns: SessionTurn[]
+  /**
+   * Schema-typed wire rows from `SessionDetailResponse.rows` (007-ui-information-revamp).
+   * Primary input for the new RowItem-based renderer; existing v4 (006) consumers
+   * read `turns` and ignore this field.
+   */
+  rows: ClaudeRowOrUnknown[]
 }
 
 // ─── Focus + flat projections ──────────────────────────────────────────────

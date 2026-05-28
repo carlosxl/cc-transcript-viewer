@@ -6,6 +6,7 @@ import { projectSessionView } from '@/hooks/useSessionView'
 import { buildMultiTurnDetail } from '@/test/fixtures'
 import { useFocus } from '@/stores/useFocus'
 import { useSessionStack } from '@/stores/useSessionStack'
+import { useCompact } from '@/stores/useCompact'
 
 // In jsdom, react-virtuoso never measures viewport size and skips rendering its
 // items. Mock it to render every row eagerly so we can drive click events.
@@ -51,6 +52,9 @@ describe('Transcript', () => {
   beforeEach(() => {
     useFocus.getState().reset()
     useSessionStack.setState({ stack: [] })
+    // These tests assert on detail-mode markup (tool capsules, diff bodies).
+    // Compact mode is the default since it's the more common reading mode.
+    useCompact.setState({ compact: false })
     if (!('requestAnimationFrame' in globalThis)) {
       ;(globalThis as { requestAnimationFrame?: typeof requestAnimationFrame }).requestAnimationFrame = (cb) =>
         setTimeout(cb, 0) as unknown as number
@@ -89,6 +93,7 @@ describe('Transcript', () => {
       model: '',
       isLive: false,
       turns: [],
+      rows: [],
     }
     render(<Harness view={view} />)
     expect(screen.getByText('Empty')).toBeInTheDocument()

@@ -1,0 +1,318 @@
+/* transcript-direction-a.css
+   Refined Variant A — three distinct visual roles:
+     YOU       = boxed quote (bg + corner mark)
+     REQUEST   = solid accent spine (the only rail in the layout)
+     HARNESS   = indented step block (no rail, leading ↳, step-foot rule)
+*/
+
+.direction-a {
+  font-family: var(--font-sans);
+  color: var(--text-0);
+  background: var(--bg-0);
+  padding: 32px 36px 48px;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+/* ── turn divider ──────────────────────────────────────────── */
+.direction-a .da-turn { margin: 0 0 36px; }
+
+.direction-a .da-turn-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 0 0 18px;
+  padding: 4px 0;
+}
+.direction-a .da-turn-id {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-1);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.direction-a .da-turn-rule { flex: 1; height: 1px; background: var(--border-1); }
+.direction-a .da-turn-meta {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* ── YOU: boxed quote ───────────────────────────────────────── */
+.direction-a .da-user {
+  position: relative;
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+  padding: 11px 14px 13px;
+  margin: 0 0 20px;
+  /* layout-stable focus — only border-color / box-shadow swap on focus */
+  transition: border-color 100ms, box-shadow 100ms, background 100ms;
+  cursor: pointer;
+}
+.direction-a .da-user:hover { border-color: var(--border-2); }
+.direction-a .da-user[data-focused="true"] {
+  border-color: var(--accent-border);
+  background: var(--accent-softer);
+  box-shadow: 0 0 0 1px var(--accent-border);
+}
+.direction-a .da-user-header {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 6px;
+}
+.direction-a .da-user-mark {
+  width: 3px; height: 14px;
+  background: var(--accent);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.direction-a .da-user-label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-0);
+  letter-spacing: 0.02em;
+}
+.direction-a .da-user-time {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+.direction-a .da-user-body {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text-0);
+  white-space: pre-wrap;
+  text-wrap: pretty;
+}
+
+/* ── REQUEST: solid accent spine ──────────────────────────── */
+.direction-a .da-req-group {
+  margin: 0 0 22px;
+}
+.direction-a .da-request {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 0;
+}
+.direction-a .da-spine {
+  width: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  align-self: stretch;
+}
+.direction-a .da-req-body { padding: 0 0 6px; min-width: 0; }
+
+.direction-a .da-req-cap {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  margin: 0 0 12px;
+  padding: 2px 0;
+}
+.direction-a .da-req-num {
+  color: var(--text-0);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.direction-a .da-nowrap { white-space: nowrap; }
+.direction-a .da-req-id { color: var(--text-2); }
+.direction-a .da-req-cost { margin-left: auto; color: var(--text-1); font-weight: 500; }
+.direction-a .da-sep { color: var(--text-disabled); }
+
+/* assistant block rhythm: no kind tags */
+.direction-a .da-think {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 2px 0;
+  align-items: baseline;
+}
+.direction-a .da-think-mark {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-disabled);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding-top: 3px;
+}
+.direction-a .da-think-body {
+  color: var(--text-2);
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.direction-a .da-text {
+  color: var(--text-0);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 10px;
+  white-space: pre-wrap;
+  text-wrap: pretty;
+}
+.direction-a .da-text code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.direction-a .da-text strong { font-weight: 600; }
+
+/* tool_use as a single mono line */
+.direction-a .da-call {
+  display: flex; align-items: baseline; gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 5px 0;
+}
+.direction-a .da-call .da-arrow { color: var(--accent-2); font-weight: 600; }
+.direction-a .da-call .da-name { color: var(--text-0); font-weight: 600; }
+.direction-a .da-call .da-arg {
+  color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; flex: 1;
+}
+
+/* ── HARNESS: indented step block, no rail ─────────────────── */
+.direction-a .da-harness {
+  margin: 6px 0 0 36px;       /* indent past the request spine + body start */
+  padding: 4px 0 0;
+}
+
+.direction-a .da-result {
+  margin: 0 0 10px;
+}
+.direction-a .da-result-head {
+  display: flex; align-items: baseline; gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 3px 0 5px;
+}
+.direction-a .da-return-glyph {
+  color: var(--text-1);
+  font-size: 13px;
+  width: 14px;
+  display: inline-flex; justify-content: center;
+  flex-shrink: 0;
+}
+.direction-a .da-result-head .da-name { color: var(--text-0); font-weight: 600; }
+.direction-a .da-result-head .da-arg {
+  color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; flex: 1;
+}
+.direction-a .da-result-head .da-dur { color: var(--text-3); font-size: 11px; }
+.direction-a .da-result-head .da-st {
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.direction-a .da-result-head .da-st.ok { color: var(--green); background: var(--green-soft); }
+.direction-a .da-result-head .da-st.err { color: var(--red); background: var(--red-soft); }
+
+/* diff body — pulled in under the return glyph */
+.direction-a .da-diff {
+  margin: 0 0 0 22px;
+  font-family: var(--font-mono);
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.direction-a .da-diff-meta {
+  display: flex; gap: 10px;
+  font-size: 10.5px;
+  color: var(--text-3);
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-1);
+}
+.direction-a .da-diff-meta .add { color: var(--green); }
+.direction-a .da-diff-meta .del { color: var(--red); }
+
+.direction-a .da-preview {
+  margin: 0 0 0 22px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 7px 10px;
+  white-space: pre-wrap;
+  max-height: 7em;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, black 70%, transparent);
+}
+
+/* step boundary — closes the harness band quietly */
+.direction-a .da-harness-foot {
+  display: flex; align-items: center; gap: 10px;
+  margin: 4px 0 0;
+  padding: 8px 0 0;
+}
+.direction-a .da-harness-rule {
+  width: 18px; height: 1px;
+  background: var(--text-disabled);
+  flex-shrink: 0;
+}
+.direction-a .da-harness-foot-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+
+/* ── shared diff renderer (matches earlier file) ───────────── */
+.direction-a .shared-diff-body {
+  font-family: var(--font-mono);
+  padding: 4px 0;
+  max-height: 320px;
+  overflow: hidden;
+}
+.direction-a .shared-diff-body.dense .sdl { line-height: 1.45; }
+.direction-a .shared-diff-body .sdl {
+  display: grid;
+  grid-template-columns: 36px 18px 1fr;
+  font-size: 11px;
+}
+.direction-a .shared-diff-body .sdl .ln {
+  text-align: right;
+  color: var(--text-disabled);
+  padding: 0 6px 0 8px;
+  user-select: none;
+  font-size: 10px;
+}
+.direction-a .shared-diff-body .sdl .mk { text-align: center; user-select: none; color: var(--text-disabled); }
+.direction-a .shared-diff-body .sdl .src {
+  white-space: pre;
+  padding: 0 8px;
+  color: var(--text-0);
+  overflow-x: hidden;
+}
+.direction-a .shared-diff-body .sdl.add { background: var(--diff-add-bg); }
+.direction-a .shared-diff-body .sdl.add .src,
+.direction-a .shared-diff-body .sdl.add .mk { color: var(--diff-add-fg); }
+.direction-a .shared-diff-body .sdl.del { background: var(--diff-del-bg); }
+.direction-a .shared-diff-body .sdl.del .src,
+.direction-a .shared-diff-body .sdl.del .mk { color: var(--diff-del-fg); }
+.direction-a .shared-diff-body .sdl.hunk {
+  grid-template-columns: 1fr;
+  color: var(--text-3);
+  font-size: 10px;
+  padding: 4px 10px;
+  background: var(--bg-2);
+}

@@ -1,6 +1,7 @@
 // packages/server/src/reader/parser.ts
 import { z } from 'zod'
-import type { ClaudeEvent } from '@cc-viewer/shared'
+import type { ClaudeEvent, ClaudeRowOrUnknown } from '@cc-viewer/shared'
+import { ClaudeRowOrUnknownSchema } from '@cc-viewer/shared'
 
 const BaseEventSchema = z.object({
   uuid: z.string().optional(),
@@ -41,6 +42,7 @@ const UserEventSchema = BaseEventSchema.extend({
   }).passthrough(),
   promptId: z.string().optional(),
   isMeta: z.boolean().optional(),
+  isCompactSummary: z.boolean().optional(),
 }).passthrough()
 
 const AssistantEventSchema = BaseEventSchema.extend({
@@ -185,4 +187,61 @@ export function parseJSONL(fileContent: string): ParseResult {
   }
 
   return { events, parseWarnings }
+}
+
+/**
+ * Row-level parse warning, surfaced through the SessionDetailResponse.parseWarnings
+ * count. Used by the new schema-aware parser (007-ui-information-revamp).
+ */
+export interface RowParseWarning {
+  lineNumber: number
+  /** The row's `type` field if it was readable; otherwise undefined. */
+  rowType?: string
+  error: string
+}
+
+export interface RowParseResult {
+  rows: ClaudeRowOrUnknown[]
+  warnings: RowParseWarning[]
+}
+
+/**
+ * Schema-aware JSONL parser (007). Returns the full ClaudeRowOrUnknown[] —
+ * the discriminated union from packages/shared/src/jsonl/schema.ts.
+ *
+ * Unrecognised `type` values fall through to UnknownRow per the
+ * ClaudeRowOrUnknownSchema's second arm; strict-validation failures for known
+ * types also fall through and emit a warning.
+ */
+export function parseRowsFromJSONL(fileContent: string): RowParseResult {
+  const rows: ClaudeRowOrUnknown[] = []
+  const warnings: RowParseWarning[] = []
+  const lines = fileContent.split('\n')
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!.trim()
+    if (line.length === 0) continue
+
+    let raw: unknown
+    try {
+      raw = JSON.parse(line)
+    } catch (e) {
+      warnings.push({ lineNumber: i + 1, error: `JSON parse: ${(e as Error).message}` })
+      continue
+    }
+
+    const result = ClaudeRowOrUnknownSchema.safeParse(raw)
+    if (!result.success) {
+      const rowType = isObjectWithType(raw) ? raw.type : undefined
+      warnings.push({ lineNumber: i + 1, rowType, error: result.error.message })
+      continue
+    }
+    rows.push(result.data)
+  }
+
+  return { rows, warnings }
+}
+
+function isObjectWithType(v: unknown): v is { type: string } {
+  return typeof v === 'object' && v !== null && typeof (v as { type?: unknown }).type === 'string'
 }

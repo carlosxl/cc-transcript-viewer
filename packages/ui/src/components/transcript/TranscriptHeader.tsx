@@ -5,6 +5,7 @@ import { fmtCost } from '@/lib/format'
 import { useWorkspace } from '@/stores/useWorkspace'
 import { useSessionStack } from '@/stores/useSessionStack'
 import { useOverlays } from '@/stores/useOverlays'
+import { useCompact } from '@/stores/useCompact'
 
 interface TranscriptHeaderProps {
   view: SessionView
@@ -15,13 +16,12 @@ interface TranscriptHeaderProps {
 
 export function TranscriptHeader({ view, livePending, onPopSubagent }: TranscriptHeaderProps) {
   const theme = useWorkspace((s) => s.theme)
-  const inspectorOpen = useWorkspace((s) => s.inspectorOpen)
   const toggleTheme = useWorkspace((s) => s.toggleTheme)
-  const toggleDensity = useWorkspace((s) => s.toggleDensity)
-  const toggleInspector = useWorkspace((s) => s.toggleInspector)
   const isSubagent = useSessionStack((s) => s.isSubagent())
   const parentLabel = useSessionStack((s) => s.stack[s.stack.length - 1]?.parentLabel ?? null)
   const toggleReport = useOverlays((s) => s.toggleReport)
+  const compact = useCompact((s) => s.compact)
+  const toggleCompact = useCompact((s) => s.toggle)
 
   const { totalReqs, totalCost } = useMemo(() => {
     let r = 0
@@ -32,6 +32,21 @@ export function TranscriptHeader({ view, livePending, onPopSubagent }: Transcrip
     }
     return { totalReqs: r, totalCost: c }
   }, [view])
+
+  // Distinct ai-title regenerations in chronological JSONL order. Most sessions
+  // have just one; the disclosure only renders when Claude has refined the title
+  // at least once.
+  const titleHistory = useMemo(() => {
+    const seen: string[] = []
+    for (const row of view.rows) {
+      if ((row as { type?: string }).type !== 'ai-title') continue
+      const t = (row as { aiTitle?: unknown }).aiTitle
+      if (typeof t !== 'string' || t.length === 0) continue
+      if (seen[seen.length - 1] === t) continue
+      seen.push(t)
+    }
+    return seen
+  }, [view.rows])
 
   return (
     <div
@@ -58,6 +73,21 @@ export function TranscriptHeader({ view, livePending, onPopSubagent }: Transcrip
           <div className="tx-title text-[15px] font-semibold text-[var(--text-0)]" style={{ letterSpacing: '-0.01em' }}>
             {view.title}
           </div>
+          {titleHistory.length > 1 && (
+            <details className="tx-title-history">
+              <summary
+                className="tx-title-history-summary cursor-pointer font-mono text-[11px] text-[var(--text-3)] hover:text-[var(--text-1)]"
+                title={`Claude refined the title ${titleHistory.length - 1} time${titleHistory.length - 1 === 1 ? '' : 's'}`}
+              >
+                ↻ {titleHistory.length - 1}
+              </summary>
+              <ol className="tx-title-history-list mt-1 ml-3 list-decimal font-mono text-[11px] text-[var(--text-2)]">
+                {titleHistory.map((t, i) => (
+                  <li key={i}>{t}</li>
+                ))}
+              </ol>
+            </details>
+          )}
         </div>
         <div className="tx-chips mt-1.5 flex flex-wrap gap-1.5">
           <Chip k="Turns" v={String(view.turns.length)} />
@@ -72,11 +102,12 @@ export function TranscriptHeader({ view, livePending, onPopSubagent }: Transcrip
           <I.report />
           <span>Report</span>
         </IconBtn>
-        <IconBtn onClick={toggleInspector} title="Toggle inspector" active={!inspectorOpen}>
-          {inspectorOpen ? <I.panel /> : <I.panelOff />}
-        </IconBtn>
-        <IconBtn onClick={toggleDensity} title="Density">
-          <I.density />
+        <IconBtn
+          onClick={toggleCompact}
+          title={compact ? 'Expand all (c)' : 'Compact: prompts + final answers only (c)'}
+          active={compact}
+        >
+          <I.compact />
         </IconBtn>
         <IconBtn onClick={toggleTheme} title="Theme (t)">
           {theme === 'dark' ? <I.sun /> : <I.moon />}

@@ -125,9 +125,10 @@ The UI degrades gracefully where the backend does not yet expose a field. Each g
 | Gap | Where the UI degrades | Suggested backend change |
 |-----|----------------------|--------------------------|
 | **Pinned sessions** — sidebar shows a star indicator in the design | UI hides the star unconditionally in v1 | Add `pinned?: boolean` to `SessionMeta`, persisted in a new local config file (e.g., `~/.cache/cc-transcript-viewer/pinned.json`) |
-| **TTFT per assistant turn** — design's request marker shows `Xms TTFT` | UI shows `—` when missing | Derive from JSONL stream timing if available; else add to the parser |
 | **CSV export of "By agent & model"** — design has an Export CSV button | Button is a visible no-op in v1 (spec Assumptions) | Add `GET /api/sessions/:id/report.csv` or compute client-side from `report.rows` |
 | **Subagent live tail** | Endpoint `#7` exists; the v1 UI does not subscribe to it (only the root) | None — backend is ready; UI subscription is a v2 follow-up |
 | **Pre-existing search snippet highlighting format** — confirm the exact HTML the server emits | If the format differs, the UI sanitizer / renderer adapts | None — the snippet field is already on the wire |
 
-None of these gaps block any P1 user story. They map to spec FR-021 (pinned), FR-052 (TTFT), FR-135 (export stub), FR-092 (subagent live), FR-112 (snippet) respectively, and the spec already calls them out as v1 limitations where applicable.
+None of these gaps block any P1 user story. They map to spec FR-021 (pinned), FR-135 (export stub), FR-092 (subagent live), FR-112 (snippet) respectively, and the spec already calls them out as v1 limitations where applicable.
+
+**Resolved**: FR-052 (TTFT per assistant turn) — derived UI-side from `Turn.timestamp` deltas in `useSessionView.ts` (the `Request.ttft` field is no longer always null).

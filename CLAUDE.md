@@ -172,5 +172,5 @@ Architecture not yet mapped. Follow existing patterns found in the codebase.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan at
-specs/006-ui-rewrite-v4/plan.md
+specs/007-ui-information-revamp/plan.md
 <!-- SPECKIT END -->

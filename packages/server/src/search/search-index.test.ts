@@ -207,4 +207,85 @@ describe('SearchIndex', () => {
     expect(result.hits).toHaveLength(10)
     expect(result.truncated).toBe(true)
   })
+
+  it('007 T050: indexes attachment payload text (file paths, hook stdout, skill listings)', () => {
+    const rows = [
+      {
+        type: 'attachment',
+        uuid: 'att-1',
+        timestamp: '2026-05-26T00:00:00Z',
+        attachment: { type: 'directory', path: '/tmp', displayPath: '/tmp', content: 'rare-keyword-xyz.txt\nother.txt' },
+      },
+      {
+        type: 'attachment',
+        uuid: 'att-2',
+        timestamp: '2026-05-26T00:00:01Z',
+        attachment: { type: 'hook_success', hookEvent: 'PreToolUse', hookName: 'lint', toolUseID: 'tu1', exitCode: 0, stdout: 'no rare-keyword-xyz issues', stderr: '' },
+      },
+    ] as unknown as Parameters<typeof index.indexFull>[7]
+    index.indexFull('sess', null, '/tmp/sess.jsonl', 1, 1, [], { title: 'S', projectSlug: 'p' }, rows)
+    const hits = index.search('rare-keyword-xyz').hits
+    expect(hits.length).toBeGreaterThanOrEqual(2)
+    const uuids = new Set(hits.map((h) => h.turnUuid))
+    expect(uuids.has('att-1')).toBe(true)
+    expect(uuids.has('att-2')).toBe(true)
+  })
+
+  it('007 T050: indexes system api_error messages', () => {
+    const rows = [
+      {
+        type: 'system',
+        uuid: 'err-1',
+        subtype: 'api_error',
+        timestamp: '2026-05-26T00:00:00Z',
+        error: { message: 'unique-error-marker rate_limit_exceeded' },
+        retryAttempt: 0,
+        maxRetries: 3,
+      },
+    ] as unknown as Parameters<typeof index.indexFull>[7]
+    index.indexFull('sess', null, '/tmp/sess.jsonl', 1, 1, [], { title: 'S', projectSlug: 'p' }, rows)
+    const hits = index.search('unique-error-marker').hits
+    expect(hits.length).toBe(1)
+    expect(hits[0]!.turnUuid).toBe('err-1')
+  })
+
+  it('007 T050: indexes system informational/away_summary content fields', () => {
+    const rows = [
+      {
+        type: 'system',
+        uuid: 'info-1',
+        subtype: 'informational',
+        timestamp: '2026-05-26T00:00:00Z',
+        content: 'Unknown command: /verywierdslashcommand',
+        level: 'warning',
+      },
+    ] as unknown as Parameters<typeof index.indexFull>[7]
+    index.indexFull('sess', null, '/tmp/sess.jsonl', 1, 1, [], { title: 'S', projectSlug: 'p' }, rows)
+    const hits = index.search('verywierdslashcommand').hits
+    expect(hits.length).toBe(1)
+    expect(hits[0]!.turnUuid).toBe('info-1')
+  })
+
+  it('007 T050: appendDelta also indexes rows', () => {
+    index.indexFull('sess', null, '/tmp/sess.jsonl', 1, 1, [makeTurn({ uuid: 'u1', role: 'user', textBlocks: ['nothing interesting'] })], { title: 'S', projectSlug: 'p' })
+    const rows = [
+      {
+        type: 'attachment',
+        uuid: 'att-delta',
+        timestamp: '2026-05-26T00:00:00Z',
+        attachment: { type: 'directory', path: '/tmp', displayPath: '/tmp', content: 'delta-marker.txt' },
+      },
+    ] as unknown as readonly unknown[]
+    index.appendDelta(
+      'sess',
+      null,
+      [],
+      { mtimeMs: 2, sizeBytes: 20, byteOffset: 20, jsonlPath: '/tmp/sess.jsonl' },
+      undefined,
+      rows as unknown as Parameters<typeof index.appendDelta>[5],
+    )
+    const hits = index.search('delta-marker').hits
+    expect(hits.length).toBe(1)
+    expect(hits[0]!.turnUuid).toBe('att-delta')
+  })
 })

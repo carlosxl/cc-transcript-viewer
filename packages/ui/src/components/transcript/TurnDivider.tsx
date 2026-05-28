@@ -1,6 +1,6 @@
 import { useFocus } from '@/stores/useFocus'
-import type { SessionTurn } from '@/lib/types'
-import { fmtCost } from '@/lib/format'
+import type { Block, SessionTurn } from '@/lib/types'
+import { fmtCost, fmtDuration } from '@/lib/format'
 
 interface TurnDividerProps {
   turn: SessionTurn
@@ -10,30 +10,79 @@ interface TurnDividerProps {
 export function TurnDivider({ turn, onClick }: TurnDividerProps) {
   const nodeId = useFocus((s) => s.nodeId)
   const focused = nodeId === turn.userMsgId || turn.requests.some((r) => r.id === nodeId)
+  const reqCount = turn.requests.length
+  const toolCount = countToolUses(turn)
+  const toolStatus = summariseToolStatus(turn)
   return (
     <div
-      className="turn-divider my-3 mt-[22px] mb-3 flex cursor-pointer items-center gap-2.5"
+      className="va-turn-divider cursor-pointer"
       data-focused={focused || undefined}
       onClick={onClick}
     >
-      <span
-        className="turn-pill inline-flex items-center gap-2 rounded-full border border-[var(--border-1)] bg-[var(--surface-1)] px-2.5 py-1 font-mono text-[11px] whitespace-nowrap text-[var(--text-2)]"
-        data-focused={focused || undefined}
-        style={{
-          borderColor: focused ? 'var(--accent-border)' : undefined,
-          background: focused ? 'var(--accent-soft)' : undefined,
-          color: focused ? 'var(--accent-2)' : undefined,
-        }}
-      >
-        <span className="id font-medium" style={{ color: focused ? 'var(--accent-2)' : 'var(--text-0)' }}>
-          Turn {turn.id.slice(0, 8)}
-        </span>
-        <span className="time text-[var(--text-3)] text-[10.5px]">{turn.time}</span>
-        <span className="cost" style={{ color: focused ? 'var(--accent-2)' : 'var(--text-1)' }}>
-          {fmtCost(turn.cost)}
-        </span>
+      <span>Turn {turn.id.slice(0, 8)}</span>
+      <span className="dot" />
+      <span>{turn.time}</span>
+      <span className="dot" />
+      <span>
+        {reqCount} {reqCount === 1 ? 'request' : 'requests'}
       </span>
-      <span className="flex-1 self-center" style={{ height: 1, background: 'var(--border)' }} />
+      {toolCount > 0 && (
+        <>
+          <span className="dot" />
+          <span data-status={toolStatus}>
+            {toolCount} tool {toolCount === 1 ? 'call' : 'calls'}
+            {toolStatus !== 'ok' && ` · ${toolStatus}`}
+          </span>
+        </>
+      )}
+      <span className="dot" />
+      <span>{fmtCost(turn.cost)}</span>
+      {typeof turn.durationMs === 'number' && (
+        <>
+          <span className="dot" />
+          <span>{fmtDuration(turn.durationMs)}</span>
+        </>
+      )}
+      {typeof turn.messageCount === 'number' && (
+        <>
+          <span className="dot" />
+          <span>
+            {turn.messageCount} {turn.messageCount === 1 ? 'message' : 'messages'}
+          </span>
+        </>
+      )}
+      <span className="rule" />
     </div>
   )
+}
+
+function countToolUses(turn: SessionTurn): number {
+  let n = 0
+  for (const r of turn.requests) {
+    for (const b of r.blocks) {
+      if (isToolBlock(b)) n++
+    }
+  }
+  return n
+}
+
+type ToolSummary = 'ok' | 'err' | 'run'
+
+function summariseToolStatus(turn: SessionTurn): ToolSummary {
+  let hasErr = false
+  let hasRun = false
+  for (const r of turn.requests) {
+    for (const b of r.blocks) {
+      if (b.kind !== 'tool_use') continue
+      if (b.status === 'err') hasErr = true
+      else if (b.status === 'run') hasRun = true
+    }
+  }
+  if (hasErr) return 'err'
+  if (hasRun) return 'run'
+  return 'ok'
+}
+
+function isToolBlock(b: Block): boolean {
+  return b.kind === 'tool_use' || b.kind === 'diff'
 }

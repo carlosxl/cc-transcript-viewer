@@ -4,6 +4,7 @@ import { useOverlays } from '@/stores/useOverlays'
 import { useSessionStack } from '@/stores/useSessionStack'
 import { useWorkspace } from '@/stores/useWorkspace'
 import { useLiveTail } from '@/stores/useLiveTail'
+import { useCompact } from '@/stores/useCompact'
 import { useFlatNodes } from './useFlatNodes'
 import { useFlatPrompts } from './useFlatPrompts'
 import { useFlatTools } from './useFlatTools'
@@ -182,7 +183,7 @@ export function useKeyboard({ view, bodyRef, scrollNodeIntoView, onPopSubagent, 
 
       // Don't fire shortcuts while overlays are open
       const overlays = useOverlays.getState()
-      const overlayOpen = overlays.search.open || overlays.report.open || overlays.jumper.open
+      const overlayOpen = overlays.search.open || overlays.report.open || overlays.jumper.open || overlays.image.open
       if (overlayOpen) return
 
       const meta = e.metaKey || e.ctrlKey
@@ -236,6 +237,13 @@ export function useKeyboard({ view, bodyRef, scrollNodeIntoView, onPopSubagent, 
       if (e.key === 't' && !shift) {
         e.preventDefault()
         useWorkspace.getState().toggleTheme()
+        return
+      }
+
+      // c → compact mode toggle
+      if (e.key === 'c' && !shift) {
+        e.preventDefault()
+        useCompact.getState().toggle()
         return
       }
 

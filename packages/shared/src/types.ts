@@ -75,6 +75,23 @@ export interface Turn {
   isMeta: boolean;
   /** null = main agent; non-null = this turn belongs to a subagent file. */
   agentId: string | null;
+  /**
+   * Anthropic prompt-loop id carried by user rows; assistant rows of the same
+   * loop share it too. The UI's two-level grouping folds rows with matching
+   * promptId into a single SessionTurn.
+   */
+  promptId?: string;
+  /** Anthropic API request id on assistant rows. Lets the UI coalesce streamed
+   * assistant rows (thinking → tool_use → text) into one Request. */
+  requestId?: string;
+  /**
+   * Set on the synthetic user row Claude Code writes immediately after a
+   * `/compact` (or auto-compact) event. The row's content is the LLM-generated
+   * summary of the pre-compact conversation, not a real user prompt. Surfaced
+   * by the UI as a collapsible "Compaction summary" disclosure rather than a
+   * regular prompt.
+   */
+  isCompactSummary?: boolean;
 }
 
 export interface SubagentRef {
@@ -85,6 +102,11 @@ export interface SubagentRef {
   description: string;
   /** The parent tool_use block id that spawned this subagent. */
   toolUseId: string;
+  /**
+   * Schema-typed rows from the subagent's JSONL (007-ui-information-revamp).
+   * Populated by `loadSessionFromDisk`; absent in some legacy test fixtures.
+   */
+  rows?: import('./jsonl/schema.js').ClaudeRowOrUnknown[];
   /**
    * The UUID of the spawner's user turn whose `<local-command-stdout>` block
    * carries this subagent's final answer. Set by the linker's Source 3
@@ -166,6 +188,11 @@ export interface Session {
   hasSubagents: boolean;
   totalUsage: AggregatedUsage;
   turns: Turn[];
+  /**
+   * Schema-typed rows from the main JSONL (007-ui-information-revamp).
+   * Always populated by `loadSessionFromDisk`.
+   */
+  rows: import('./jsonl/schema.js').ClaudeRowOrUnknown[];
   subagents: SubagentRef[];
   parseWarnings: number;
   /** See SessionMeta.worktreeOf. */
@@ -209,6 +236,7 @@ export interface UserEvent extends ClaudeEventBase {
   };
   promptId?: string;
   isMeta?: boolean;
+  isCompactSummary?: boolean;
 }
 
 export interface AssistantEvent extends ClaudeEventBase {
@@ -288,6 +316,12 @@ export interface SessionsListResponse {
 
 export interface SessionDetailResponse {
   turns: Turn[];
+  /**
+   * Schema-typed wire rows (007-ui-information-revamp). Discriminated union
+   * from packages/shared/src/jsonl/schema.ts. The UI's primary input for
+   * the new RowItem-based renderer.
+   */
+  rows: import('./jsonl/schema.js').ClaudeRowOrUnknown[];
   subagents: SubagentRef[];
   usage: AggregatedUsage;
   parseWarnings: number;
@@ -310,6 +344,11 @@ export interface SubagentDetailResponse {
   parentToolUseId: string;
   status: SubagentRef['status'];
   turns: Turn[];
+  /**
+   * Schema-typed wire rows for this subagent (007-ui-information-revamp).
+   * Mirror of SessionDetailResponse.rows but scoped to the subagent's JSONL.
+   */
+  rows: import('./jsonl/schema.js').ClaudeRowOrUnknown[];
   childAgentIds: string[];
   /** Token usage for THIS subagent only (not summed across children). */
   usage: UsageSummary;

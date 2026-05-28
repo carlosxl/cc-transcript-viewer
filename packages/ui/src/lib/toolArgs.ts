@@ -20,6 +20,28 @@ function asStr(v: unknown): string {
   }
 }
 
+/**
+ * Tool-name display formatting.
+ *  - MCP tool names of the form `mcp__<plugin>_<provider>__<action>` are
+ *    collapsed to `<provider> · <action>` so the capsule reads at a glance.
+ *  - `ExitPlanMode` is relabelled "Plan accepted" since the tool is the
+ *    moment the user accepts a plan and reads better that way.
+ *  - Everything else returns unchanged.
+ */
+export function formatToolDisplayName(name: string): string {
+  if (name === 'ExitPlanMode') return 'Plan accepted'
+  if (name.startsWith('mcp__')) {
+    const parts = name.split('__').filter(Boolean)
+    if (parts.length >= 2) {
+      const provider = parts[parts.length - 2]
+      const action = parts[parts.length - 1]
+      const providerShort = provider.replace(/^plugin_/, '').split('_').pop() ?? provider
+      return `${providerShort} · ${action}`
+    }
+  }
+  return name
+}
+
 export function getToolArgSummary(name: string, input: Record<string, unknown> | null | undefined): string {
   const inp = (input ?? {}) as Record<string, unknown>
   switch (name) {
