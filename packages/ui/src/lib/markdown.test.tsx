@@ -1,86 +1,36 @@
-// XSS defense tests per D-17 + RESEARCH.md Pitfall 9 — verifies gfmSchema and MarkdownRenderer safety
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
-import React from 'react'
+import { describe, it, expect } from 'vitest'
+import { render } from '@testing-library/react'
+import { renderInline } from './markdown'
 
-// Mock CodeBlock before importing MarkdownRenderer so we can spy on dispatch
-vi.mock('../components/transcript/CodeBlock', () => ({
-  CodeBlock: vi.fn(({ language, code }: { language: string; code: string }) => (
-    <div data-testid="codeblock-mock" data-language={language} data-code={code} />
-  )),
-}))
-
-import { MarkdownRenderer } from './markdown'
-import { CodeBlock } from '../components/transcript/CodeBlock'
-
-afterEach(() => {
-  cleanup()
-  vi.clearAllMocks()
-})
-
-describe('MarkdownRenderer — XSS safety', () => {
-  it('Test 1: strips <script> tags — no script element in DOM', () => {
-    const { container } = render(<MarkdownRenderer text="<script>alert(1)</script>" />)
-    expect(container.querySelector('script')).toBeNull()
+describe('renderInline', () => {
+  it('renders **bold** segments as <strong>', () => {
+    const { container } = render(<div>{renderInline('hello **world**')}</div>)
+    const strong = container.querySelector('strong')
+    expect(strong?.textContent).toBe('world')
   })
 
-  it('Test 2: strips javascript: URLs — no active javascript: href', () => {
-    const { container } = render(<MarkdownRenderer text="[click](javascript:alert(1))" />)
-    expect(container.querySelector('a[href^="javascript:"]')).toBeNull()
+  it('renders `code` segments as <code>', () => {
+    const { container } = render(<div>{renderInline('run `npm test` to verify')}</div>)
+    const code = container.querySelector('code')
+    expect(code?.textContent).toBe('npm test')
   })
 
-  it('Test 7: strips on* event attributes from inline HTML', () => {
-    // skipHtml + rehypeSanitize strips onclick from raw HTML passed in markdown
-    const { container } = render(
-      <MarkdownRenderer text={`<a href="x" onclick="alert(1)">x</a>`} />
-    )
-    const anchor = container.querySelector('a')
-    // Either the anchor was stripped entirely or it lacks onclick
-    if (anchor) {
-      expect(anchor.getAttribute('onclick')).toBeNull()
-    }
-  })
-})
-
-describe('MarkdownRenderer — GFM rendering', () => {
-  it('Test 3: renders GFM table with thead and tbody', () => {
-    const md = `| A | B |\n|---|---|\n| 1 | 2 |`
-    const { container } = render(<MarkdownRenderer text={md} />)
-    expect(container.querySelector('table')).not.toBeNull()
-    expect(container.querySelector('thead')).not.toBeNull()
-    expect(container.querySelector('tbody')).not.toBeNull()
+  it('renders explicit \\n as <br/>', () => {
+    const { container } = render(<div>{renderInline('line one\nline two')}</div>)
+    expect(container.querySelectorAll('br').length).toBe(1)
+    expect(container.textContent).toBe('line oneline two')
   })
 
-  it('Test 4: renders task list checkboxes — [x] checked, [ ] unchecked', () => {
-    const md = `- [x] done\n- [ ] todo`
-    const { container } = render(<MarkdownRenderer text={md} />)
-    const checkboxes = container.querySelectorAll('input[type="checkbox"]')
-    expect(checkboxes).toHaveLength(2)
-    expect((checkboxes[0] as HTMLInputElement).checked).toBe(true)
-    expect((checkboxes[1] as HTMLInputElement).checked).toBe(false)
-  })
-})
-
-describe('MarkdownRenderer — code dispatch', () => {
-  it('Test 5: fenced TypeScript block routes to CodeBlock with correct language and code', () => {
-    const md = '```typescript\nconst x = 1\n```'
-    render(<MarkdownRenderer text={md} />)
-    const MockCodeBlock = CodeBlock as ReturnType<typeof vi.fn>
-    expect(MockCodeBlock).toHaveBeenCalled()
-    const callArgs = MockCodeBlock.mock.calls[0][0]
-    expect(callArgs.language).toBe('typescript')
-    expect(callArgs.code).toContain('const x = 1')
-    // CodeBlock test id present in DOM
-    expect(screen.getByTestId('codeblock-mock')).toBeTruthy()
+  it('returns null for empty / nullish input (no DOM cost)', () => {
+    expect(renderInline('')).toBeNull()
+    expect(renderInline(null)).toBeNull()
+    expect(renderInline(undefined)).toBeNull()
   })
 
-  it('Test 6: inline backtick code renders as plain <code> without CodeBlock', () => {
-    render(<MarkdownRenderer text="use `const x` here" />)
-    const MockCodeBlock = CodeBlock as ReturnType<typeof vi.fn>
-    // CodeBlock should NOT be called for inline code
-    expect(MockCodeBlock).not.toHaveBeenCalled()
-    // But a <code> element should exist
-    const codes = document.querySelectorAll('code')
-    expect(codes.length).toBeGreaterThan(0)
+  it('leaves unrecognized markdown verbatim', () => {
+    const { container } = render(<div>{renderInline('plain text without markup')}</div>)
+    expect(container.textContent).toBe('plain text without markup')
+    expect(container.querySelector('strong')).toBeNull()
+    expect(container.querySelector('code')).toBeNull()
   })
 })

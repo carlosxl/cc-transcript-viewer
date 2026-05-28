@@ -32,6 +32,10 @@ export interface AppOptions {
   searchIndex?: SearchIndex
   /** Phase 4: background reconciler used by /api/search/status + /api/search/progress. */
   searchReconciler?: SearchReconciler
+  /** 007: root for Claude Code file-history backups; defaults to ~/.claude/file-history. */
+  fileHistoryRoot?: string
+  /** Root for plan markdown files; defaults to ~/.claude/plans. */
+  plansRoot?: string
 }
 
 /** Returned by createApp — the assembled Hono app plus its SessionMap so the
@@ -115,6 +119,8 @@ export function createApp(options: AppOptions): AppContext {
     liveTracker: options.liveTracker,
     searchIndex: options.searchIndex,
     searchReconciler: options.searchReconciler,
+    fileHistoryRoot: options.fileHistoryRoot,
+    plansRoot: options.plansRoot,
   })
 
   // Test-only ping route — leftover from plan 04, kept harmless.

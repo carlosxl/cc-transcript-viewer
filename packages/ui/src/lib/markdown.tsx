@@ -1,45 +1,29 @@
-// XSS defense per D-17 + RESEARCH.md Pitfall 9 — schema extends hast-util-sanitize defaultSchema with GFM checkbox support only.
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
-import { CodeBlock } from '../components/transcript/CodeBlock'
+import { Fragment, type ReactNode } from 'react'
 
-// GFM-aware sanitizer schema (Pitfall 9): start from rehype-sanitize defaultSchema,
-// add task-list <input type="checkbox"> support that remark-gfm emits.
-// defaultSchema already strips raw <script>, javascript: URLs (via urlSchemes allow-list
-// http/https/mailto/tel only), and on* event handlers (attribute allow-list).
-export const gfmSchema = {
-  ...defaultSchema,
-  attributes: {
-    ...defaultSchema.attributes,
-    input: [
-      ['type', 'checkbox'],   // restrict input to type=checkbox only
-      'checked',
-      'disabled',
-    ],
-  },
-  tagNames: [...(defaultSchema.tagNames ?? []), 'input'],
-}
+/**
+ * Light inline markdown renderer for the design's text blocks (FR-053).
+ *
+ * Supports **bold**, `code`, and \n line breaks — matching the prototype's
+ * transcript.jsx:renderInline. Anything else is rendered verbatim.
+ */
+const RX = /(\*\*[^*]+\*\*|`[^`]+`|\n)/g
 
-export function MarkdownRenderer({ text }: { text: string }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[[rehypeSanitize, gfmSchema]]}
-      skipHtml                                       // belt-and-braces: also strip raw HTML at react-markdown layer
-      components={{
-        code({ className, children, ...rest }) {
-          const match = /language-(\w+)/.exec(className ?? '')
-          const raw = String(children).replace(/\n$/, '')
-          if (!match) {
-            // inline code: <code> with no language fence — render plainly
-            return <code className={className} {...rest}>{children}</code>
-          }
-          return <CodeBlock language={match[1]} code={raw} />
-        },
-      }}
-    >
-      {text}
-    </ReactMarkdown>
-  )
+export function renderInline(s: string | null | undefined): ReactNode {
+  if (!s) return null
+  const parts = s.split(RX)
+  const out: ReactNode[] = []
+  let i = 0
+  for (const part of parts) {
+    if (part === '') continue
+    if (part === '\n') {
+      out.push(<br key={i++} />)
+    } else if (part.length > 4 && part.startsWith('**') && part.endsWith('**')) {
+      out.push(<strong key={i++}>{part.slice(2, -2)}</strong>)
+    } else if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) {
+      out.push(<code key={i++}>{part.slice(1, -1)}</code>)
+    } else {
+      out.push(<Fragment key={i++}>{part}</Fragment>)
+    }
+  }
+  return <>{out}</>
 }

@@ -1,8 +1,10 @@
 // packages/server/src/api/routes.ts
 import type { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
-import { existsSync, readdirSync, statSync } from 'node:fs'
-import { join, isAbsolute, normalize } from 'node:path'
+import { existsSync, readdirSync, statSync, createReadStream, readFileSync } from 'node:fs'
+import { join, isAbsolute, normalize, resolve, sep } from 'node:path'
+import { homedir } from 'node:os'
+import { Readable } from 'node:stream'
 import type {
   SessionsListResponse,
   SessionDetailResponse,
@@ -49,6 +51,19 @@ export interface RouteDeps {
   searchIndex?: SearchIndex
   /** Phase 4: reconciler exposing index-progress for /api/search/status and SSE. */
   searchReconciler?: SearchReconciler
+  /**
+   * 007: Root directory holding Claude Code's file-history backups. Each session
+   * has a subdirectory at `<fileHistoryRoot>/<sessionId>/<backupFileName>` per
+   * `packages/shared/src/jsonl/schema.ts:1062`. Defaults to `<homedir>/.claude/file-history`.
+   */
+  fileHistoryRoot?: string
+  /**
+   * Root directory holding markdown plan files Claude Code writes during
+   * plan mode. The `plan_mode` attachment carries absolute paths under this
+   * root; the /api/plans endpoint sandbox-checks them against this value.
+   * Defaults to `<homedir>/.claude/plans`.
+   */
+  plansRoot?: string
 }
 
 /** Maximum length of an /api/search?q= query — bounds DB cost + protects against pathological input. */
@@ -93,6 +108,9 @@ function findSessionJsonl(projectsDir: string, sessionId: string): string | null
 export function registerRoutes(app: Hono, deps: RouteDeps): void {
   const { sessionMap, projectsDir, version, liveTracker, searchIndex, searchReconciler } = deps
   const sessionCache = deps.sessionCache ?? new SessionCache<{ response: SessionDetailResponse }>(3)
+  const fileHistoryRoot = deps.fileHistoryRoot ?? join(homedir(), '.claude', 'file-history')
+  const imageCacheRoot = join(homedir(), '.claude', 'image-cache')
+  const plansRoot = deps.plansRoot ?? join(homedir(), '.claude', 'plans')
 
   // GET /api/health
   app.get('/api/health', (c) => {
@@ -146,6 +164,7 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
       const { session } = await loadSessionFromDisk(jsonlPath)
       const body: SessionDetailResponse = {
         turns: session.turns,
+        rows: session.rows,
         subagents: session.subagents,
         usage: session.totalUsage,
         parseWarnings: session.parseWarnings,
@@ -215,6 +234,7 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
         parentToolUseId: sa.toolUseId,
         status: sa.status,
         turns: sa.turns,
+        rows: sa.rows ?? [],
         childAgentIds: sa.childAgentIds,
         usage: sumTurnUsage(sa.turns),
         toolInteractions: buildToolInteractions(sa.turns),
@@ -225,6 +245,153 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
     } catch (err) {
       logError('GET /api/sessions/:id/subagents/:agentId load failed', err, { id, agentId, jsonlPath })
       return c.json(errorResponse('LOAD_SUBAGENT_FAILED', 'Failed to load subagent'), 500)
+    }
+  })
+
+  // GET /api/sessions/:id/tool-results/:filename  (007 — FR-013, contract §2)
+  //
+  // Streams an off-loaded BashResult.persistedOutputPath blob from
+  // <sessionDir>/tool-results/<filename>. Filename must be UUID + .txt.
+  app.get('/api/sessions/:id/tool-results/:filename', async (c) => {
+    const id = c.req.param('id')
+    const filename = c.req.param('filename')
+    if (!isSafeSessionId(id)) {
+      return c.json({ error: 'not-found' }, 404)
+    }
+    if (!/^[0-9a-fA-F-]{36}\.txt$/.test(filename)) {
+      return c.json({ error: 'invalid-filename' }, 400)
+    }
+    const jsonlPath = findSessionJsonl(projectsDir, id)
+    if (!jsonlPath) {
+      return c.json({ error: 'not-found' }, 404)
+    }
+    const sessionDir = jsonlPath.slice(0, jsonlPath.length - '.jsonl'.length)
+    const baseDir = resolve(sessionDir, 'tool-results')
+    const resolved = resolve(baseDir, filename)
+    if (resolved !== baseDir && !resolved.startsWith(baseDir + sep)) {
+      return c.json({ error: 'invalid-filename' }, 400)
+    }
+    if (!existsSync(resolved)) {
+      return c.json({ error: 'missing-blob' }, 404)
+    }
+    try {
+      const fileStream = createReadStream(resolved)
+      const webStream = Readable.toWeb(fileStream) as ReadableStream<Uint8Array>
+      c.header('Content-Type', 'text/plain; charset=utf-8')
+      c.header('Cache-Control', 'private, max-age=86400')
+      return c.body(webStream)
+    } catch (err) {
+      logError('GET /api/sessions/:id/tool-results/:filename failed', err, { id, filename })
+      return c.json(errorResponse('INTERNAL_ERROR', 'Failed to stream blob'), 500)
+    }
+  })
+
+  // GET /api/sessions/:id/file-history/:backupFileName  (007 — FR-014, contract §3)
+  //
+  // Streams a tracked-file backup from <fileHistoryRoot>/<sessionId>/<backupFileName>.
+  // Backup filenames are alphanumeric + hyphens, underscores, dots, @, max 256 chars.
+  // Path source: schema.ts:1062 — Claude Code writes these under ~/.claude/file-history.
+  app.get('/api/sessions/:id/file-history/:backupFileName', async (c) => {
+    const id = c.req.param('id')
+    const backupFileName = c.req.param('backupFileName')
+    if (!isSafeSessionId(id)) {
+      return c.json({ error: 'not-found' }, 404)
+    }
+    if (
+      backupFileName.length === 0 ||
+      backupFileName.length > 256 ||
+      !/^[A-Za-z0-9._@-]+$/.test(backupFileName)
+    ) {
+      return c.json({ error: 'invalid-filename' }, 400)
+    }
+    const baseDir = resolve(fileHistoryRoot, id)
+    const resolved = resolve(baseDir, backupFileName)
+    if (resolved !== baseDir && !resolved.startsWith(baseDir + sep)) {
+      return c.json({ error: 'invalid-filename' }, 400)
+    }
+    if (!existsSync(resolved)) {
+      return c.json({ error: 'missing-backup' }, 404)
+    }
+    try {
+      const fileStream = createReadStream(resolved)
+      const webStream = Readable.toWeb(fileStream) as ReadableStream<Uint8Array>
+      c.header('Content-Type', 'application/octet-stream')
+      c.header('Cache-Control', 'private, max-age=86400')
+      return c.body(webStream)
+    } catch (err) {
+      logError('GET /api/sessions/:id/file-history/:backupFileName failed', err, {
+        id,
+        backupFileName,
+      })
+      return c.json(errorResponse('INTERNAL_ERROR', 'Failed to stream backup'), 500)
+    }
+  })
+
+  // GET /api/sessions/:id/images/:n  — serves images Claude Code caches at
+  // ~/.claude/image-cache/<sessionId>/<n>.png whenever the user pastes/drops
+  // an image. Filenames are 1-indexed and match `[Image #N]` placeholders in
+  // the user prompt text.
+  app.get('/api/sessions/:id/images/:n', (c) => {
+    const id = c.req.param('id')
+    const nRaw = c.req.param('n')
+    if (!isSafeSessionId(id)) {
+      return c.json({ error: 'not-found' }, 404)
+    }
+    if (!/^[1-9]\d{0,4}$/.test(nRaw)) {
+      return c.json({ error: 'invalid-image-number' }, 400)
+    }
+    const baseDir = resolve(imageCacheRoot, id)
+    const fileName = `${nRaw}.png`
+    const resolved = resolve(baseDir, fileName)
+    if (resolved !== baseDir && !resolved.startsWith(baseDir + sep)) {
+      return c.json({ error: 'invalid-path' }, 400)
+    }
+    if (!existsSync(resolved)) {
+      return c.json({ error: 'missing-image' }, 404)
+    }
+    try {
+      const fileStream = createReadStream(resolved)
+      const webStream = Readable.toWeb(fileStream) as ReadableStream<Uint8Array>
+      c.header('Content-Type', 'image/png')
+      c.header('Cache-Control', 'private, max-age=86400')
+      return c.body(webStream)
+    } catch (err) {
+      logError('GET /api/sessions/:id/images/:n failed', err, { id, n: nRaw })
+      return c.json(errorResponse('INTERNAL_ERROR', 'Failed to stream image'), 500)
+    }
+  })
+
+  // GET /api/plans?path=<absolute-path>
+  // Serves the markdown plan files Claude Code writes under ~/.claude/plans/
+  // when the user enters plan mode. The `plan_mode` attachment row carries an
+  // absolute path; the UI passes it back through this endpoint so we can
+  // sandbox-check it server-side and stream the content without leaking other
+  // files on disk. Response shape mirrors other JSON endpoints for consumer
+  // simplicity.
+  app.get('/api/plans', (c) => {
+    const path = c.req.query('path')
+    if (!path || !isAbsolute(path)) {
+      return c.json(errorResponse('INVALID_PATH', 'Absolute path required'), 400)
+    }
+    const resolved = resolve(normalize(path))
+    // Plan files only live under ~/.claude/plans/. Any path outside that root
+    // — even one that legitimately exists — is rejected so this endpoint
+    // can't double as an arbitrary-file reader.
+    if (resolved !== plansRoot && !resolved.startsWith(plansRoot + sep)) {
+      return c.json(errorResponse('INVALID_PATH', 'Path outside plans root'), 400)
+    }
+    if (!resolved.endsWith('.md')) {
+      return c.json(errorResponse('INVALID_PATH', 'Only .md files supported'), 400)
+    }
+    if (!existsSync(resolved)) {
+      return c.json(errorResponse('NOT_FOUND', 'Plan file not found'), 404)
+    }
+    try {
+      const content = readFileSync(resolved, 'utf8')
+      return c.json({ path: resolved, content })
+    } catch (err) {
+      logError('GET /api/plans failed', err, { path: resolved })
+      return c.json(errorResponse('INTERNAL_ERROR', 'Failed to read plan file'), 500)
     }
   })
 
@@ -269,10 +436,12 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
         if (e.sessionId !== sessionId) return
         void (async () => {
           try {
-            const turns = await reader.readNew(sessionId, e.jsonlPath)
-            if (turns.length === 0) return
+            const { turns, rows } = await reader.readNew(sessionId, e.jsonlPath)
+            if (turns.length === 0 && rows.length === 0) return
             eventId++
-            await stream.writeSSE({ id: String(eventId), event: 'turns', data: JSON.stringify({ turns }) })
+            // 007: payload extended with `rows` alongside `turns`. Event name unchanged;
+            // SSE wire is JSON so the wider payload is backwards-compatible.
+            await stream.writeSSE({ id: String(eventId), event: 'turns', data: JSON.stringify({ turns, rows }) })
             sessionCache.delete(sessionId)
           } catch (err) {
             logError('SSE turns dispatch failed', err, { sessionId })
@@ -343,10 +512,10 @@ export function registerRoutes(app: Hono, deps: RouteDeps): void {
         if (e.sessionId !== sessionId || e.agentId !== agentId) return
         void (async () => {
           try {
-            const turns = await reader.readNew(readerKey, e.jsonlPath)
-            if (turns.length === 0) return
+            const { turns, rows } = await reader.readNew(readerKey, e.jsonlPath)
+            if (turns.length === 0 && rows.length === 0) return
             eventId++
-            await stream.writeSSE({ id: String(eventId), event: 'turns', data: JSON.stringify({ turns }) })
+            await stream.writeSSE({ id: String(eventId), event: 'turns', data: JSON.stringify({ turns, rows }) })
             sessionCache.delete(sessionId) // parent cache stale; byAgent totals changed
           } catch (err) {
             logError('SSE subagent turns dispatch failed', err, { sessionId, agentId })

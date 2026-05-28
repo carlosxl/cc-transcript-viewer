@@ -11,9 +11,11 @@ import type { ClaudeEvent, Turn, SubagentRef } from '@cc-viewer/shared'
  *      when a Task tool_use is enqueued. task-id matches the subagent filename
  *      stem (= agentId).
  *
- *   2. tool_result content text. The user-message that follows an Agent/Task
- *      tool_use carries plain text "Async agent launched successfully.\nagentId:
- *      <id>...". Less structured but ubiquitous.
+ *   2. tool_result sidecar / content text. The user-message that follows an
+ *      Agent/Task tool_use carries either a structured `toolUseResult.agentId`
+ *      field (modern Claude Code) or, on older sessions, plain text "Async agent
+ *      launched successfully.\nagentId: <id>...". The structured field is
+ *      preferred when present.
  *
  *   3. Filename → agentId fallback. Already done by loadSessionFromDisk; the
  *      agentId is the source of truth even when the parent linkage is unknown.
@@ -181,6 +183,13 @@ export function buildSubagentLinkages(
       if (e.type !== 'user') continue
       const content = e.message.content
       if (!Array.isArray(content)) continue
+      // Source 2a: modern Claude Code stores the spawned agentId in the
+      // structured sidecar `toolUseResult.agentId`. Deterministic and
+      // survives result-format drift, so prefer over text parsing.
+      const tur = (e as unknown as Record<string, unknown>)['toolUseResult']
+      const structuredAgentId = isObject(tur) && typeof (tur as Record<string, unknown>)['agentId'] === 'string'
+        ? ((tur as Record<string, unknown>)['agentId'] as string)
+        : null
       for (const b of content) {
         if (!isObject(b)) continue
         const obj = b as Record<string, unknown>
@@ -189,8 +198,9 @@ export function buildSubagentLinkages(
         if (typeof toolUseId !== 'string') continue
         if (!agentToolUseIds.has(toolUseId)) continue
 
-        const text = stringifyToolResultContent(obj['content'])
-        const childAgentId = extractAgentIdFromToolResult(text)
+        // Source 2b: legacy text fallback ("Async agent launched...\nagentId: <id>").
+        const childAgentId = structuredAgentId
+          ?? extractAgentIdFromToolResult(stringifyToolResultContent(obj['content']))
         if (!childAgentId) continue
         recordLinkage(spawnerAgentId, childAgentId, toolUseId)
 

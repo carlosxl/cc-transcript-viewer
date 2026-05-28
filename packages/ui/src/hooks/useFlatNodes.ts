@@ -1,36 +1,31 @@
 import { useMemo } from 'react'
-import type { ToolInteraction, Turn } from '@cc-viewer/shared'
-import { useUIStore } from '@/stores/useUIStore'
-import { buildFlatNodes, type VirtualNode } from '@/lib/flatNodes'
+import type { FlatNode, SessionView } from '@/lib/types'
 
 /**
- * Phase 4: turns + interactions → flat node array.
+ * Flattens SessionView.turns into the j/k step order:
+ *   for each SessionTurn: user-prompt node first, then one request-node per
+ *   assistant request in document order.
  *
- * `interactions` is the projection returned by the active detail response;
- * the hook uses it only to determine which capsules also need a `diff` node.
- * `viewMode` from `useUIStore` controls thinking visibility (compact = hide).
+ * Stderr-envelope user prompts are still included here (only useFlatPrompts
+ * filters them).
  */
-export function useFlatNodes(
-  turns: Turn[],
-  interactions: ToolInteraction[] | undefined,
-): VirtualNode[] {
-  const viewMode = useUIStore((s) => s.viewMode)
-  const showThinking = viewMode === 'details'
-  const diffIds = useMemo(() => {
-    const s = new Set<string>()
-    if (interactions) {
-      for (const it of interactions) {
-        if (it.diff) s.add(it.toolUseId)
-      }
+export function useFlatNodes(view: SessionView | null): FlatNode[] {
+  return useMemo(() => {
+    if (!view) return []
+    const out: FlatNode[] = []
+    for (const turn of view.turns) {
+      out.push({
+        id: turn.id,
+        meta: { kind: 'user', turn },
+      })
+      const total = turn.requests.length
+      turn.requests.forEach((request, idx) => {
+        out.push({
+          id: request.id,
+          meta: { kind: 'request', turn, request, idx: idx + 1, total },
+        })
+      })
     }
-    return s
-  }, [interactions])
-  return useMemo(
-    () =>
-      buildFlatNodes(turns, {
-        showThinking,
-        hasDiff: (id) => diffIds.has(id),
-      }),
-    [turns, showThinking, diffIds],
-  )
+    return out
+  }, [view])
 }

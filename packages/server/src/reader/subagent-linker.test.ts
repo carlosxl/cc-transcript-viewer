@@ -91,6 +91,29 @@ describe('buildSubagentLinkages', () => {
     expect(linkages.toolUseToAgent.get('toolu_Y')).toBe('agentB')
   })
 
+  it('resolves toolUseId via Source 2 structured `toolUseResult.agentId` (modern Claude Code)', () => {
+    // Modern Claude Code: tool_result.content is the agent's natural-language
+    // answer (no "agentId:" marker), but the user event carries a structured
+    // `toolUseResult.agentId` sidecar.
+    const userEvent = {
+      type: 'user',
+      uuid: 'u-toolu_M',
+      timestamp: '2026-05-09T00:00:01Z',
+      message: {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'toolu_M', content: 'Free-form answer text without any agentId marker.' }],
+      },
+      toolUseResult: { agentId: 'agentModern', agentType: 'Explore', status: 'completed', totalDurationMs: 1000, totalTokens: 200 },
+    } as unknown as ClaudeEvent
+    const parentEvents: ClaudeEvent[] = [
+      assistant('1', [{ type: 'tool_use', id: 'toolu_M', name: 'Agent', input: { subagent_type: 'Explore' } }]),
+      userEvent,
+    ]
+    const linkages = buildSubagentLinkages(parentEvents, new Map([['agentModern', []]]))
+    expect(linkages.agentToToolUse.get('agentModern')).toBe('toolu_M')
+    expect(linkages.toolUseToAgent.get('toolu_M')).toBe('agentModern')
+  })
+
   it('Source 1 wins over Source 2 when both signals exist', () => {
     const parentEvents: ClaudeEvent[] = [
       assistant('1', [{ type: 'tool_use', id: 'toolu_Z', name: 'Task', input: {} }]),

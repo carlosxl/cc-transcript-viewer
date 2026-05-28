@@ -1,6 +1,7 @@
 // packages/server/src/reader/normalizer.ts
 import type {
   ClaudeEvent,
+  ClaudeRowOrUnknown,
   Turn,
   ToolUse,
   ToolResult,
@@ -28,6 +29,24 @@ export function eventsToTurns(events: ClaudeEvent[]): Turn[] {
   }
 
   return turns
+}
+
+/**
+ * Schema-aware variant of `eventsToTurns` for 007-ui-information-revamp.
+ *
+ * Consumes `ClaudeRowOrUnknown[]` (the discriminated union from
+ * packages/shared/src/jsonl/schema.ts) rather than the legacy ClaudeEvent[].
+ *
+ * The runtime fields overlap completely on the variants the legacy normalizer
+ * cares about (user/assistant/system, plus the unknown fallback). Other row
+ * kinds (attachment, permission-mode, worktree-state, etc.) are filtered out
+ * here — they're surfaced separately as RowItems by the UI's flat-row builder.
+ */
+export function rowsToTurns(rows: ClaudeRowOrUnknown[]): Turn[] {
+  // Runtime-compatible cast: every field eventToTurn accesses is present on
+  // the schema rows with the same shape. The schema types are stricter, the
+  // legacy ClaudeEvent types are looser; cast through unknown to bridge.
+  return eventsToTurns(rows as unknown as ClaudeEvent[])
 }
 
 function eventToTurn(event: ClaudeEvent, index: number): Turn | null {
@@ -85,6 +104,8 @@ function normalizeUserTurn(event: Extract<ClaudeEvent, { type: 'user' }>, index:
     toolResults,
     isMeta: event.isMeta ?? false,
     agentId: event.agentId ?? null,
+    promptId: event.promptId,
+    isCompactSummary: event.isCompactSummary === true ? true : undefined,
   }
 }
 
@@ -128,6 +149,7 @@ function normalizeAssistantTurn(event: Extract<ClaudeEvent, { type: 'assistant' 
     model,
     isMeta: false,
     agentId: event.agentId ?? null,
+    requestId: event.requestId,
   }
 }
 

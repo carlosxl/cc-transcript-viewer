@@ -13,6 +13,7 @@ export type ErrorCode =
   | 'LOAD_SESSION_FAILED'
   | 'LOAD_SUBAGENT_FAILED'
   | 'INVALID_QUERY'
+  | 'INVALID_PATH'
   | 'INTERNAL_ERROR'
   | 'NOT_FOUND'
 

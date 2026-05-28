@@ -10,5 +10,13 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
+  },
+  "scripts": {
+    "prebuild": "rm -rf dist",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --dir src"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
   }
 }

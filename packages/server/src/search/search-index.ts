@@ -16,7 +16,12 @@
 
 import Database from 'better-sqlite3'
 import type { Database as Db } from 'better-sqlite3'
-import type { Turn, SearchHit, SearchContentKind } from '@cc-viewer/shared'
+import type {
+  Turn,
+  SearchHit,
+  SearchContentKind,
+  ClaudeRowOrUnknown,
+} from '@cc-viewer/shared'
 
 const SCHEMA_VERSION = 1
 const DEFAULT_LIMIT = 50
@@ -111,6 +116,9 @@ export class SearchIndex {
   /**
    * Replace all rows for (sessionId, agentId) with the given turns. Use this
    * for full (re-)index of a file — the reconciler calls it on mtime mismatch.
+   *
+   * 007: pass `rows` to additionally index attachment payload text + api_error
+   * messages that the Turn[] projection drops on the floor.
    */
   indexFull(
     sessionId: string,
@@ -120,11 +128,15 @@ export class SearchIndex {
     sizeBytes: number,
     turns: readonly Turn[],
     sessionInfo: SessionTitleInfo,
+    rows?: readonly ClaudeRowOrUnknown[],
   ): void {
     const tx = this.db.transaction(() => {
       this.upsertSession(sessionId, sessionInfo)
       this.deleteFileRows(sessionId, agentId)
       this.appendTurns(sessionId, agentId, turns)
+      if (rows && rows.length > 0) {
+        this.appendRowExtras(sessionId, agentId, rows)
+      }
       this.upsertFile({
         sessionId,
         agentId,
@@ -147,8 +159,9 @@ export class SearchIndex {
     turns: readonly Turn[],
     fileMeta: { mtimeMs: number; sizeBytes: number; byteOffset: number; jsonlPath: string },
     sessionInfo?: SessionTitleInfo,
+    rows?: readonly ClaudeRowOrUnknown[],
   ): void {
-    if (turns.length === 0) {
+    if (turns.length === 0 && (!rows || rows.length === 0)) {
       // Still update file meta so the next reconcile can skip.
       this.db
         .prepare(
@@ -161,6 +174,9 @@ export class SearchIndex {
     const tx = this.db.transaction(() => {
       if (sessionInfo) this.upsertSession(sessionId, sessionInfo)
       this.appendTurns(sessionId, agentId, turns)
+      if (rows && rows.length > 0) {
+        this.appendRowExtras(sessionId, agentId, rows)
+      }
       this.upsertFile({
         sessionId,
         agentId,
@@ -301,6 +317,39 @@ export class SearchIndex {
     }
   }
 
+  /**
+   * 007 (T050): index schema-typed row fields that the Turn[] projection drops:
+   *   - attachment payload text (skill listings, hook stdout/stderr, file paths, …)
+   *   - system row content (api_error messages, away_summary, informational)
+   * Role is recorded as 'system' for these rows. Indexed against the row uuid
+   * so the UI's search-result jump can resolve to the originating row.
+   */
+  private appendRowExtras(
+    sessionId: string,
+    agentId: string | null,
+    rows: readonly ClaudeRowOrUnknown[],
+  ): void {
+    const insert = this.db.prepare(
+      `INSERT INTO messages (content, session_id, agent_id, turn_uuid, timestamp, role, content_kind)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    for (const row of rows) {
+      const blocks = extractRowExtras(row)
+      for (const block of blocks) {
+        if (!block.content) continue
+        insert.run(
+          block.content,
+          sessionId,
+          agentId,
+          block.rowUuid,
+          block.timestamp ?? '',
+          'system',
+          block.kind,
+        )
+      }
+    }
+  }
+
   private upsertFile(rec: FileRecord): void {
     this.db
       .prepare(
@@ -338,6 +387,9 @@ interface RawHit {
 }
 
 function rowToHit(r: RawHit): SearchHit {
+  // SearchHit's role field is narrowed to 'user' | 'assistant' on the wire;
+  // attachments + system rows are exposed as 'assistant' for now (a future
+  // change can widen the union; the contentKind already disambiguates).
   return {
     sessionId: r.sessionId,
     agentId: r.agentId,
@@ -419,6 +471,111 @@ function valueToText(v: unknown): string {
 function clampLimit(limit: number | undefined): number {
   if (!limit || limit < 1) return DEFAULT_LIMIT
   return Math.min(limit, MAX_LIMIT)
+}
+
+interface RowExtraBlock {
+  kind: SearchContentKind
+  content: string
+  rowUuid: string
+  timestamp?: string
+}
+
+interface AnyRow {
+  type?: unknown
+  uuid?: unknown
+  timestamp?: unknown
+  subtype?: unknown
+  content?: unknown
+  error?: unknown
+  attachment?: unknown
+}
+
+/**
+ * Extracts text the Turn[] projection doesn't surface: attachment payload text
+ * and system row error / informational content. Maps each block to the
+ * originating row's uuid so the UI can jump to it (T052 in Phase 6).
+ *
+ * Schema source: packages/shared/src/jsonl/schema.ts (sections 580-820 for
+ * attachments, 910-917 for system subtypes).
+ */
+function extractRowExtras(row: ClaudeRowOrUnknown): RowExtraBlock[] {
+  const r = row as unknown as AnyRow
+  const out: RowExtraBlock[] = []
+  const rowUuid = typeof r.uuid === 'string' && r.uuid.length > 0 ? r.uuid : '__synth'
+  const timestamp = typeof r.timestamp === 'string' ? r.timestamp : undefined
+
+  if (r.type === 'attachment' && r.attachment && typeof r.attachment === 'object') {
+    const text = attachmentText(r.attachment as Record<string, unknown>)
+    if (text) out.push({ kind: 'tool_use', content: text, rowUuid, timestamp })
+    return out
+  }
+
+  if (r.type === 'system') {
+    const errMsg = systemErrorMessage(r)
+    if (errMsg) out.push({ kind: 'tool_result', content: errMsg, rowUuid, timestamp })
+    return out
+  }
+
+  return out
+}
+
+function attachmentText(att: Record<string, unknown>): string {
+  const t = att.type
+  const parts: string[] = []
+  if (typeof t === 'string') parts.push(t)
+
+  const append = (v: unknown): void => {
+    if (v == null) return
+    if (typeof v === 'string') {
+      if (v) parts.push(v)
+      return
+    }
+    if (Array.isArray(v)) {
+      for (const item of v) append(item)
+      return
+    }
+    if (typeof v === 'object') {
+      try {
+        parts.push(JSON.stringify(v))
+      } catch {
+        // ignore
+      }
+      return
+    }
+    parts.push(String(v))
+  }
+
+  // Walk all string-valued fields for indexable text. Most attachment subtypes
+  // carry a small set of relevant fields (path / displayPath / filename /
+  // content / snippet / addedNames / removedNames / readdedNames / commandMode /
+  // prompt / allowedTools / condition / reason / hookName / hookEvent / stdout
+  // / stderr / blockingError); rather than enumerate 22 subtypes, iterate the
+  // keys.
+  for (const [k, v] of Object.entries(att)) {
+    if (k === 'type') continue
+    append(v)
+  }
+  return parts.join(' ')
+}
+
+function systemErrorMessage(r: AnyRow): string {
+  if (r.subtype === 'api_error') {
+    const errObj = r.error
+    if (typeof errObj === 'string') return errObj
+    if (errObj && typeof errObj === 'object') {
+      const msg = (errObj as { message?: unknown }).message
+      if (typeof msg === 'string') return msg
+      try {
+        return JSON.stringify(errObj)
+      } catch {
+        return ''
+      }
+    }
+  }
+  // For away_summary / informational / local_command etc., `.content` is the
+  // human-visible text.
+  if (typeof r.content === 'string') return r.content
+  return ''
 }
 
 /**

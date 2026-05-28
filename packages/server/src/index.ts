@@ -166,14 +166,16 @@ function attachSearchWatcher(
     void (async () => {
       try {
         await ensureInit(e.sessionId, e.jsonlPath)
-        const turns = await reader.readNew(e.sessionId, e.jsonlPath)
-        if (turns.length === 0) return
+        const { turns, rows } = await reader.readNew(e.sessionId, e.jsonlPath)
+        if (turns.length === 0 && rows.length === 0) return
         const st = statSync(e.jsonlPath)
         index.appendDelta(
           e.sessionId,
           null,
           turns,
           { mtimeMs: st.mtimeMs, sizeBytes: st.size, byteOffset: st.size, jsonlPath: e.jsonlPath },
+          undefined,
+          rows,
         )
       } catch (err) {
         logError('search watcher: append indexing failed', err, { sessionId: e.sessionId })
@@ -186,14 +188,16 @@ function attachSearchWatcher(
       const key = `${e.sessionId}:${e.agentId}`
       try {
         await ensureInit(key, e.jsonlPath)
-        const turns = await reader.readNew(key, e.jsonlPath)
-        if (turns.length === 0) return
+        const { turns, rows } = await reader.readNew(key, e.jsonlPath)
+        if (turns.length === 0 && rows.length === 0) return
         const st = statSync(e.jsonlPath)
         index.appendDelta(
           e.sessionId,
           e.agentId,
           turns,
           { mtimeMs: st.mtimeMs, sizeBytes: st.size, byteOffset: st.size, jsonlPath: e.jsonlPath },
+          undefined,
+          rows,
         )
       } catch (err) {
         logError('search watcher: subagent append indexing failed', err, {
