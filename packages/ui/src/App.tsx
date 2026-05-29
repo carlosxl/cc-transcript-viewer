@@ -48,6 +48,29 @@ function ThemeEffect() {
   return null
 }
 
+/**
+ * Read `?session=<id-or-prefix>` from the current URL. Returns the raw value
+ * (untrimmed of case). Caller resolves prefixes against the sessions list.
+ */
+function readSessionParam(): string | null {
+  if (typeof window === 'undefined') return null
+  const v = new URLSearchParams(window.location.search).get('session')
+  return v && v.trim().length > 0 ? v.trim() : null
+}
+
+/**
+ * Resolve a session id-or-prefix to a full sessionId from a list of sessions.
+ * Exact match wins; otherwise case-insensitive prefix match. Ambiguous prefixes
+ * (multiple matches) return null so the caller can defer (e.g. open palette).
+ */
+function resolveSessionRef(ref: string, sessions: readonly { sessionId: string }[]): string | null {
+  const lower = ref.toLowerCase()
+  const exact = sessions.find((s) => s.sessionId.toLowerCase() === lower)
+  if (exact) return exact.sessionId
+  const prefixed = sessions.filter((s) => s.sessionId.toLowerCase().startsWith(lower))
+  return prefixed.length === 1 ? prefixed[0].sessionId : null
+}
+
 function WorkspaceShell() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const queryClient = useQueryClient()
@@ -75,6 +98,47 @@ function WorkspaceShell() {
     () => sessionsList?.sessions.find((s) => s.sessionId === activeSessionId) ?? null,
     [sessionsList, activeSessionId],
   )
+
+  // Deep-link: `?session=<id-or-prefix>` selects the matching session once the
+  // sidebar list loads. We only resolve unambiguous prefixes — silent on
+  // multi-match so the user can disambiguate via the search palette.
+  // Runs once per ref so re-renders don't fight a manual selection.
+  //
+  // `bootstrapped` gates the URL-mirror effect below: on first paint
+  // activeSessionId is still null, and without the gate the mirror would
+  // strip the user's `?session=` deep-link before this effect has a chance
+  // to read and resolve it.
+  const lastResolvedRef = useRef<string | null>(null)
+  const [bootstrapped, setBootstrapped] = useState(false)
+  useEffect(() => {
+    if (!sessionsList) return
+    const ref = readSessionParam()
+    if (ref && ref !== lastResolvedRef.current) {
+      const resolved = resolveSessionRef(ref, sessionsList.sessions)
+      if (resolved) {
+        lastResolvedRef.current = ref
+        setActiveSessionId(resolved)
+      }
+    }
+    if (!bootstrapped) setBootstrapped(true)
+  }, [sessionsList, bootstrapped])
+
+  // Mirror activeSessionId into the URL so it's shareable. replaceState avoids
+  // polluting back/forward — the URL is always "current view", not history.
+  // Skipped until the deep-link resolver has run at least once.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !bootstrapped) return
+    const url = new URL(window.location.href)
+    const current = url.searchParams.get('session')
+    if (activeSessionId) {
+      if (current === activeSessionId) return
+      url.searchParams.set('session', activeSessionId)
+    } else {
+      if (current == null) return
+      url.searchParams.delete('session')
+    }
+    window.history.replaceState(null, '', url.toString())
+  }, [activeSessionId, bootstrapped])
 
   const projected = useSessionView(
     detail ?? null,
@@ -381,7 +445,13 @@ function WorkspaceShell() {
         status={<StatusBar />}
       />
       <TurnJumper onPick={onPickTurn} />
-      <SearchPalette onPick={onPickSearchHit} />
+      <SearchPalette
+        onPick={onPickSearchHit}
+        onPickSession={(sessionId) => {
+          useOverlays.getState().closeAll()
+          setActiveSessionId(sessionId)
+        }}
+      />
       <SessionReport sessionId={activeSessionId} sessionTitle={activeMeta?.title ?? ''} />
       <ImageLightbox />
     </>

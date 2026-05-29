@@ -3,17 +3,31 @@ import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { I } from '@/components/ui/icons'
 import { search, getSearchStatus, subscribeSearchProgress } from '@/api/search'
+import { listSessions } from '@/api/sessions'
 import { useOverlays } from '@/stores/useOverlays'
 import { fmtRelativeTime } from '@/lib/format'
-import type { SearchHit, SearchStatusResponse } from '@/lib/types'
+import type { SearchHit, SearchStatusResponse, SessionMeta } from '@/lib/types'
 
 interface SearchPaletteProps {
   onPick: (hit: SearchHit) => void
+  /** Pick a session by ID — used when the query prefix-matches a sessionId. */
+  onPickSession: (sessionId: string) => void
 }
+
+/** Unified entry type so keyboard nav can walk session matches + content hits together. */
+type PaletteEntry =
+  | { type: 'session'; session: SessionMeta }
+  | { type: 'hit'; hit: SearchHit }
+
+/** Minimum query length before we surface session-ID prefix matches. UUIDs are
+ * 36 chars, but the user often only knows the first 4–8; below 3 chars the
+ * match set is too noisy to be useful. */
+const SESSION_PREFIX_MIN = 3
+const SESSION_MATCH_LIMIT = 20
 
 const DEBOUNCE_MS = 150
 
-export function SearchPalette({ onPick }: SearchPaletteProps) {
+export function SearchPalette({ onPick, onPickSession }: SearchPaletteProps) {
   const open = useOverlays((s) => s.search.open)
   const query = useOverlays((s) => s.search.query)
   const setQuery = useOverlays((s) => s.setQuery)
@@ -43,6 +57,33 @@ export function SearchPalette({ onPick }: SearchPaletteProps) {
   })
 
   const results: SearchHit[] = useMemo(() => searchData?.results ?? [], [searchData])
+
+  // Session-ID prefix matches. Live (not debounced) since this is a client-side
+  // filter over the already-loaded sidebar list — feels instant to the user.
+  // Shares the ['sessions'] query key with the sidebar so the cache is reused.
+  const { data: sessionsData } = useQuery({
+    queryKey: ['sessions'],
+    queryFn: ({ signal }) => listSessions({ signal }),
+    enabled: open,
+  })
+
+  const sessionMatches = useMemo<SessionMeta[]>(() => {
+    const q = query.trim().toLowerCase()
+    if (q.length < SESSION_PREFIX_MIN || !sessionsData) return []
+    const matches: SessionMeta[] = []
+    for (const s of sessionsData.sessions) {
+      if (s.sessionId.toLowerCase().startsWith(q)) matches.push(s)
+      if (matches.length >= SESSION_MATCH_LIMIT) break
+    }
+    return matches
+  }, [query, sessionsData])
+
+  // Combined entries for keyboard nav: sessions first, then content hits.
+  const allEntries = useMemo<PaletteEntry[]>(() => {
+    const out: PaletteEntry[] = sessionMatches.map((s) => ({ type: 'session' as const, session: s }))
+    for (const h of results) out.push({ type: 'hit', hit: h })
+    return out
+  }, [sessionMatches, results])
 
   // Indexing-progress strip: fetch once on open + subscribe to SSE.
   const [indexStatus, setIndexStatus] = useState<SearchStatusResponse | null>(null)
@@ -88,24 +129,26 @@ export function SearchPalette({ onPick }: SearchPaletteProps) {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setActive((a) => Math.min(a + 1, results.length - 1))
+        setActive((a) => Math.min(a + 1, allEntries.length - 1))
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         setActive((a) => Math.max(0, a - 1))
       } else if (e.key === 'Enter') {
         e.preventDefault()
-        const hit = results[active]
-        if (hit) onPick(hit)
+        const entry = allEntries[active]
+        if (!entry) return
+        if (entry.type === 'session') onPickSession(entry.session.sessionId)
+        else onPick(entry.hit)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, active, results, onPick])
+  }, [open, active, allEntries, onPick, onPickSession])
 
-  // Reset active when results change.
+  // Reset active when the entry list changes.
   useEffect(() => {
     setActive(0)
-  }, [debouncedQ, results.length])
+  }, [debouncedQ, allEntries.length])
 
   // Scroll active row into view.
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -115,23 +158,26 @@ export function SearchPalette({ onPick }: SearchPaletteProps) {
     if (row) row.scrollIntoView({ block: 'nearest' })
   }, [open, active])
 
-  // Group results by project for display, but keep absolute order for arrow nav.
+  // Group hits by project for display. absIdx is offset by sessionMatches.length
+  // so it stays aligned with the unified `allEntries` array used for nav.
   const groups = useMemo(() => {
     const out: Array<{ project: string; hits: Array<{ hit: SearchHit; absIdx: number }> }> = []
     const byProj = new Map<string, Array<{ hit: SearchHit; absIdx: number }>>()
+    const offset = sessionMatches.length
     results.forEach((hit, i) => {
       const key = hit.projectSlug || '—'
+      const entry = { hit, absIdx: offset + i }
       const arr = byProj.get(key)
       if (arr) {
-        arr.push({ hit, absIdx: i })
+        arr.push(entry)
       } else {
-        const fresh: Array<{ hit: SearchHit; absIdx: number }> = [{ hit, absIdx: i }]
+        const fresh: Array<{ hit: SearchHit; absIdx: number }> = [entry]
         byProj.set(key, fresh)
         out.push({ project: key, hits: fresh })
       }
     })
     return out
-  }, [results])
+  }, [results, sessionMatches.length])
 
   if (!open) return null
 
@@ -213,7 +259,7 @@ export function SearchPalette({ onPick }: SearchPaletteProps) {
         )}
 
         <div ref={listRef} className="palette-results overflow-y-auto" style={{ padding: '6px 0 8px' }}>
-          {results.length === 0 ? (
+          {allEntries.length === 0 ? (
             <div
               className="palette-empty text-center"
               style={{ padding: '28px 18px', color: 'var(--text-2)', fontSize: 12.5 }}
@@ -225,39 +271,72 @@ export function SearchPalette({ onPick }: SearchPaletteProps) {
                 className="k mt-1.5 font-mono"
                 style={{ fontSize: 10.5, color: 'var(--text-3)' }}
               >
-                tools · files · diffs · text · tool_results · prompts
+                session IDs · tools · files · diffs · text · tool_results · prompts
               </div>
             </div>
           ) : (
-            groups.map((g) => (
-              <div key={g.project}>
-                <div
-                  className="palette-group-h flex items-center gap-1.5 font-mono uppercase"
-                  style={{
-                    padding: '8px 14px 4px',
-                    fontSize: 10,
-                    color: 'var(--text-3)',
-                    letterSpacing: '0.07em',
-                  }}
-                >
-                  <I.folder />
-                  <span>{g.project}</span>
-                  <span className="meta" style={{ color: 'var(--text-2)' }}>
-                    · {g.hits.length} matches
-                  </span>
+            <>
+              {sessionMatches.length > 0 && (
+                <div>
+                  <div
+                    className="palette-group-h flex items-center gap-1.5 font-mono uppercase"
+                    style={{
+                      padding: '8px 14px 4px',
+                      fontSize: 10,
+                      color: 'var(--text-3)',
+                      letterSpacing: '0.07em',
+                    }}
+                  >
+                    <I.link />
+                    <span>Sessions</span>
+                    <span className="meta" style={{ color: 'var(--text-2)' }}>
+                      · {sessionMatches.length} {sessionMatches.length === 1 ? 'match' : 'matches'}
+                      {sessionMatches.length >= SESSION_MATCH_LIMIT ? '+' : ''}
+                    </span>
+                  </div>
+                  {sessionMatches.map((s, i) => (
+                    <SessionRow
+                      key={s.sessionId}
+                      session={s}
+                      query={query.trim()}
+                      active={i === active}
+                      rowIdx={i}
+                      onActivate={() => setActive(i)}
+                      onPick={() => onPickSession(s.sessionId)}
+                    />
+                  ))}
                 </div>
-                {g.hits.map(({ hit, absIdx }) => (
-                  <ResultRow
-                    key={hit.sessionId + ':' + hit.turnUuid + ':' + absIdx}
-                    hit={hit}
-                    active={absIdx === active}
-                    rowIdx={absIdx}
-                    onActivate={() => setActive(absIdx)}
-                    onPick={() => onPick(hit)}
-                  />
-                ))}
-              </div>
-            ))
+              )}
+              {groups.map((g) => (
+                <div key={g.project}>
+                  <div
+                    className="palette-group-h flex items-center gap-1.5 font-mono uppercase"
+                    style={{
+                      padding: '8px 14px 4px',
+                      fontSize: 10,
+                      color: 'var(--text-3)',
+                      letterSpacing: '0.07em',
+                    }}
+                  >
+                    <I.folder />
+                    <span>{g.project}</span>
+                    <span className="meta" style={{ color: 'var(--text-2)' }}>
+                      · {g.hits.length} matches
+                    </span>
+                  </div>
+                  {g.hits.map(({ hit, absIdx }) => (
+                    <ResultRow
+                      key={hit.sessionId + ':' + hit.turnUuid + ':' + absIdx}
+                      hit={hit}
+                      active={absIdx === active}
+                      rowIdx={absIdx}
+                      onActivate={() => setActive(absIdx)}
+                      onPick={() => onPick(hit)}
+                    />
+                  ))}
+                </div>
+              ))}
+            </>
           )}
         </div>
 
@@ -296,6 +375,73 @@ function Hint({ label, k }: { label: string; k: string }) {
       </kbd>
       {label}
     </span>
+  )
+}
+
+/** Row for a session-ID prefix match. Highlights the matching prefix. */
+function SessionRow({
+  session,
+  query,
+  active,
+  rowIdx,
+  onActivate,
+  onPick,
+}: {
+  session: SessionMeta
+  query: string
+  active: boolean
+  rowIdx: number
+  onActivate: () => void
+  onPick: () => void
+}) {
+  const id = session.sessionId
+  const prefixLen = Math.min(id.length, query.length)
+  const matched = id.slice(0, prefixLen)
+  const rest = id.slice(prefixLen)
+  return (
+    <div
+      data-row={rowIdx}
+      data-active={active || undefined}
+      onMouseEnter={onActivate}
+      onClick={onPick}
+      className="palette-result flex cursor-pointer flex-col gap-0.5 border-l-2 px-[14px] py-[8px]"
+      style={{
+        borderLeftColor: active ? 'var(--accent)' : 'transparent',
+        background: active ? 'var(--surface-2)' : 'transparent',
+      }}
+    >
+      <div
+        className="top flex items-center gap-2"
+        style={{ fontSize: 12.5, color: 'var(--text-0)' }}
+      >
+        <Badge>session</Badge>
+        <span className="truncate">{session.title || id}</span>
+      </div>
+      <div
+        className="snippet truncate font-mono"
+        style={{
+          fontSize: 11,
+          color: 'var(--text-1)',
+          paddingLeft: 4,
+          borderLeft: '2px solid var(--border-1)',
+        }}
+      >
+        <mark
+          style={{
+            background: 'oklch(0.82 0.14 80 / 0.25)',
+            color: 'var(--text-0)',
+            padding: '0 2px',
+            borderRadius: 2,
+          }}
+        >
+          {matched}
+        </mark>
+        {rest}
+      </div>
+      <div className="meta font-mono" style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
+        {session.projectSlug || '—'} · {session.messageCount} msgs · {fmtRelativeTime(session.lastTimestamp)}
+      </div>
+    </div>
   )
 }
 
