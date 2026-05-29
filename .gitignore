@@ -9,6 +9,10 @@ packages/server/public/
 packages/shared/dist/
 *.tsbuildinfo
 
+# Packaging artifacts
+*.tgz
+.cache/
+
 # Stray tsc emit alongside source (we want emit only in dist/)
 packages/shared/src/*.d.ts
 packages/shared/src/*.js
