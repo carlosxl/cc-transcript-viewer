@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { listSessions } from '@/api/sessions'
 import type { SessionMeta } from '@/lib/types'
@@ -6,6 +6,7 @@ import { I } from '@/components/ui/icons'
 import { Brand } from './Brand'
 import { SearchButton } from './SearchButton'
 import { ProjectGroup } from './ProjectGroup'
+import { SessionTimeFilter, windowMs, type TimeWindow } from './SessionTimeFilter'
 
 interface SidebarProps {
   activeSessionId: string | null
@@ -37,7 +38,17 @@ function groupSessions(sessions: SessionMeta[]): Group[] {
   for (const g of map.values()) {
     g.sessions.sort((a, b) => Date.parse(b.lastTimestamp) - Date.parse(a.lastTimestamp))
   }
-  return [...map.values()].sort((a, b) => b.lastTs - a.lastTs)
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** Keep sessions created within the window; "all" / unparseable timestamps pass through. */
+function filterByWindow(sessions: SessionMeta[], ms: number | null): SessionMeta[] {
+  if (ms == null) return sessions
+  const cutoff = Date.now() - ms
+  return sessions.filter((s) => {
+    const t = Date.parse(s.firstTimestamp)
+    return !Number.isFinite(t) || t >= cutoff
+  })
 }
 
 function displayName(path: string): string {
@@ -47,21 +58,29 @@ function displayName(path: string): string {
 }
 
 export function Sidebar({ activeSessionId, onSelectSession }: SidebarProps) {
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>('7d')
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['sessions'],
     queryFn: ({ signal }) => listSessions({ signal }),
   })
 
-  const groups = useMemo(() => groupSessions(data?.sessions ?? []), [data])
+  const groups = useMemo(
+    () => groupSessions(filterByWindow(data?.sessions ?? [], windowMs(timeWindow))),
+    [data, timeWindow],
+  )
 
   return (
     <>
       <Brand />
       <SearchButton />
+      <SessionTimeFilter value={timeWindow} onChange={setTimeWindow} />
       <div className="sb-list flex-1 overflow-y-auto px-0 pt-1 pb-4">
         {isLoading && <Loading />}
         {error && <Errored message={(error as Error).message} />}
-        {!isLoading && !error && groups.length === 0 && <Empty />}
+        {!isLoading && !error && groups.length === 0 && (
+          <Empty filtered={timeWindow !== 'all' && (data?.sessions?.length ?? 0) > 0} />
+        )}
         {groups.map((g) => (
           <ProjectGroup
             key={g.id}
@@ -93,13 +112,13 @@ function Errored({ message }: { message: string }) {
   )
 }
 
-function Empty() {
+function Empty({ filtered }: { filtered: boolean }) {
   return (
     <div className="mt-3 flex items-center gap-1.5 px-2.5 py-1.5 font-mono text-[10.5px] text-[var(--text-3)]">
       <span className="text-[var(--text-3)]">
         <I.flask />
       </span>
-      <span>No sessions yet</span>
+      <span>{filtered ? 'No sessions in this time range' : 'No sessions yet'}</span>
     </div>
   )
 }
